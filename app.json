@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Classpulse",
+    "slug": "classpulse",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "ios": { "supportsTablet": true },
+    "web": { "name": "Classpulse", "bundler": "metro" }
+  }
+}
