@@ -8,6 +8,7 @@ import { supabase } from './src/lib/supabase';
 import { RosterManager } from './src/features/rosters/RosterManager';
 import { QuizManager } from './src/features/quizzes/QuizManager';
 import { StudentEntry } from './src/features/students/StudentEntry';
+import { LiveResults } from './src/features/results/LiveResults';
 import { LaunchManager } from './src/features/launch/LaunchManager';
 
 type Page = 'home' | 'teacher' | 'student' | 'account';
@@ -29,12 +30,13 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('Overview');
   const [preview, setPreview] = useState<number | null>(null);
   const auth = useTeacherAuth();
-  const [workspaceTab, setWorkspaceTab] = useState<'classes' | 'quizzes' | 'launch'>('classes');
+  const [workspaceTab, setWorkspaceTab] = useState<'classes' | 'quizzes' | 'launch' | 'results'>('classes');
+  const [resultsSession,setResultsSession]=useState('');
   const [selectedClass, setSelectedClass] = useState('');
   const [quizDirty, setQuizDirty] = useState(false);
   const [quizEpoch, setQuizEpoch] = useState(0);
-  const [pendingExit, setPendingExit] = useState<Page | 'classes' | 'launch' | 'signout' | null>(null);
-  useEffect(() => { setQuizDirty(false); setPendingExit(null); setSelectedClass(''); }, [auth.profile?.id]);
+  const [pendingExit, setPendingExit] = useState<Page | 'classes' | 'launch' | 'results' | 'signout' | null>(null);
+  useEffect(() => { setQuizDirty(false); setPendingExit(null); setSelectedClass(''); setResultsSession(''); }, [auth.profile?.id]);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState('');
   async function signOut(force = false) {
@@ -52,7 +54,7 @@ export default function App() {
   function discardAndContinue() {
     const action = pendingExit; setPendingExit(null); setQuizDirty(false); setQuizEpoch(value => value + 1);
     if (action === 'signout') void signOut(true);
-    else if (action === 'classes' || action === 'launch') setWorkspaceTab(action);
+    else if (action === 'classes' || action === 'launch' || action === 'results') setWorkspaceTab(action);
     else if (action) { setPage(action); setPreview(null); }
   }
 
@@ -67,15 +69,16 @@ export default function App() {
           </Pressable>
           {page !== 'home' ? <Button title="Home" secondary onPress={() => navigate('home')} /> : <Tag>Made for your classroom</Tag>}
         </View>
-        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 6 · Start a prepared quiz. Students can answer questions; the live results screen comes next.' : 'STEP 5 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
+        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 7 · Follow student answers in Live Results. Hide names, responses or scores when projecting in class.' : 'STEP 5 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
 
         {!!pendingExit && <Card style={{ gap: 14 }}><Text style={s.cardTitle}>You have unsaved quiz changes.</Text><Text style={s.body}>Cancel to return to the editor and save your draft, or discard those edits to continue.</Text><Button title="Cancel — keep editing" secondary onPress={() => setPendingExit(null)} /><Button title="Discard changes and continue" onPress={discardAndContinue} /></Card>}
         {page === 'account' && (auth.loading ? <Card><Text style={s.body}>Opening your workspace…</Text></Card> : auth.profile && auth.session && auth.profile.id === auth.session.user.id ? <>
           <View style={s.pageHeading}><Text style={s.eyebrow}>YOUR PRIVATE TEACHER WORKSPACE</Text><Text accessibilityRole="header" style={s.title}>Welcome, {auth.profile.full_name}.</Text><Text style={s.body}>{auth.session.user.email}</Text></View>
-          <View style={s.wrap}><Button title="My classes" secondary={workspaceTab !== 'classes'} onPress={() => { if (quizDirty) setPendingExit('classes'); else setWorkspaceTab('classes'); }} /><Button title="My quizzes" secondary={workspaceTab !== 'quizzes'} onPress={() => setWorkspaceTab('quizzes')} /><Button title="Launch" secondary={workspaceTab !== 'launch'} onPress={() => { if (quizDirty) setPendingExit('launch'); else setWorkspaceTab('launch'); }} /></View>
+          <View style={s.wrap}><Button title="My classes" secondary={workspaceTab !== 'classes'} onPress={() => { if (quizDirty) setPendingExit('classes'); else setWorkspaceTab('classes'); }} /><Button title="My quizzes" secondary={workspaceTab !== 'quizzes'} onPress={() => setWorkspaceTab('quizzes')} /><Button title="Launch" secondary={workspaceTab !== 'launch'} onPress={() => { if (quizDirty) setPendingExit('launch'); else setWorkspaceTab('launch'); }} /><Button title="Live Results" secondary={workspaceTab !== 'results'} onPress={() => { if (quizDirty) setPendingExit('results'); else setWorkspaceTab('results'); }} /></View>
           <View style={{ display: workspaceTab === 'classes' ? 'flex' : 'none' }}><RosterManager key={auth.profile.id} teacherId={auth.profile.id} selectedRosterId={selectedClass} onClassSelect={setSelectedClass} /></View>
           <View style={{ display: workspaceTab === 'quizzes' ? 'flex' : 'none' }}><QuizManager key={`${auth.profile.id}-${quizEpoch}`} teacherId={auth.profile.id} onDirtyChange={setQuizDirty} /></View>
-          <View style={{ display: workspaceTab === 'launch' ? 'flex' : 'none' }}><LaunchManager key={auth.profile.id} teacherId={auth.profile.id} active={workspaceTab === 'launch'} selectedRosterId={selectedClass} onClassSelect={setSelectedClass} /></View>
+          <View style={{ display: workspaceTab === 'launch' ? 'flex' : 'none' }}><LaunchManager key={auth.profile.id} teacherId={auth.profile.id} active={workspaceTab === 'launch'} selectedRosterId={selectedClass} onClassSelect={setSelectedClass} onResults={id=>{setResultsSession(id);setWorkspaceTab('results');}} /></View>
+          <View style={{display:workspaceTab==='results'?'flex':'none'}}><LiveResults key={auth.profile.id} teacherId={auth.profile.id} active={workspaceTab==='results'} requestedSession={resultsSession}/></View>
           {!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}
           <Button title={signingOut ? 'Signing out…' : 'Sign out'} secondary onPress={() => void signOut()} />
         </> : auth.session ? <Card style={{ gap: 16 }}><Text style={s.cardTitle}>We could not open your workspace.</Text><Text accessibilityRole="alert" style={s.body}>{auth.profileError || 'Your teacher profile has not been verified.'}</Text><Button title="Retry workspace" onPress={auth.retryProfile} /><Button title={signingOut ? 'Signing out…' : 'Sign out'} secondary onPress={() => void signOut()} />{!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}</Card> : <TeacherAuthScreen onPreview={() => navigate('teacher')} />)}
@@ -126,7 +129,7 @@ export default function App() {
 
         {page === 'student' && <StudentEntry />}
         <View style={s.footer}>
-          <View style={{ gap: 5 }}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 6 of 10</Text></View>
+          <View style={{ gap: 5 }}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 7 of 10</Text></View>
           <Pressable accessibilityRole="link" accessibilityLabel="Powered by IMT Hyderabad. Open the institute website." onPress={() => { void Linking.openURL('https://www.imthyderabad.edu.in/'); }} style={s.instituteBrand}>
             <Text style={s.instituteCaption}>Powered by</Text>
             <Image source={require('./assets/imt-hyderabad-logo.png')} resizeMode="contain" style={s.instituteLogo} accessibilityLabel="Institute of Management Technology Hyderabad logo" />
