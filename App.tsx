@@ -149,7 +149,7 @@ export default function App() {
         <View style={s.footer}>
           <View style={{ gap: 5 }}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 4 of 10</Text></View>
           <Pressable accessibilityRole="link" accessibilityLabel="Powered by IMT Hyderabad. Open the institute website." onPress={() => { void Linking.openURL('https://www.imthyderabad.edu.in/'); }} style={s.instituteBrand}>
-            <Text style={s.instituteCaption}>Powered by IMT Hyderabad</Text>
+            <Text style={s.instituteCaption}>Powered by</Text>
             <Image source={require('./assets/imt-hyderabad-logo.png')} resizeMode="contain" style={s.instituteLogo} accessibilityLabel="Institute of Management Technology Hyderabad logo" />
           </Pressable>
         </View>

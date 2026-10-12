@@ -1,6 +1,6 @@
 # Institute branding
 
-The Classpulse footer displays Powered by IMT Hyderabad and the Institute of Management Technology Hyderabad logo supplied by the user-requested college website.
+The Classpulse footer displays Powered by and the Institute of Management Technology Hyderabad logo supplied by the user-requested college website.
 
 Source homepage: https://www.imthyderabad.edu.in/
 Source asset: https://www.imthyderabad.edu.in/media/IMT-logo.png
