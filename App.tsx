@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { demoQuizzes, demoRoom, demoStudents } from './src/data/demo';
 import { TeacherAuthScreen } from './src/features/auth/TeacherAuthScreen';
@@ -146,7 +146,13 @@ export default function App() {
             </>}
           </Card>
         </View>}
-        <View style={s.footer}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 4 of 10</Text></View>
+        <View style={s.footer}>
+          <View style={{ gap: 5 }}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 4 of 10</Text></View>
+          <Pressable accessibilityRole="link" accessibilityLabel="Powered by IMT Hyderabad. Open the institute website." onPress={() => { void Linking.openURL('https://www.imthyderabad.edu.in/'); }} style={s.instituteBrand}>
+            <Text style={s.instituteCaption}>Powered by IMT Hyderabad</Text>
+            <Image source={require('./assets/imt-hyderabad-logo.png')} resizeMode="contain" style={s.instituteLogo} accessibilityLabel="Institute of Management Technology Hyderabad logo" />
+          </Pressable>
+        </View>
       </View>
     </ScrollView>
   </View>;
@@ -168,5 +174,8 @@ const s = StyleSheet.create({
   pageHeading: { gap: 12, paddingTop: 16 }, title: { fontSize: 34, lineHeight: 43, fontWeight: '700', color: colors.ink, letterSpacing: -0.8 }, tabs: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' }, tab: { paddingVertical: 12, paddingHorizontal: 22, borderRadius: 10 }, activeTab: { backgroundColor: colors.ink }, tabText: { color: colors.muted, fontSize: 14, fontWeight: '600' }, stat: { color: colors.ink, fontWeight: '700', fontSize: 36 }, sectionTitle: { color: colors.ink, fontSize: 20, fontWeight: '600', lineHeight: 28 },
   rosterRow: { flexDirection: 'row', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.line, gap: 12, alignItems: 'center' }, idText: { color: colors.ink, fontSize: 13, fontWeight: '600' },
   studentLayout: { gap: 32, paddingVertical: 24 }, label: { color: colors.ink, fontSize: 13, fontWeight: '600' }, input: { borderWidth: 1, borderColor: '#BBCAC0', borderRadius: 10, padding: 14, minHeight: 50, fontSize: 16, color: colors.ink, backgroundColor: '#FCFCF9' }, error: { color: '#A13624', fontSize: 14, lineHeight: 22 },
+  instituteBrand: { backgroundColor: '#FFFFFF', padding: 12, borderRadius: 12, gap: 6, maxWidth: '100%', alignSelf: 'flex-start' },
+  instituteCaption: { color: colors.muted, fontSize: 12, lineHeight: 19, fontWeight: '600' },
+  instituteLogo: { width: 270, height: 80, maxWidth: '100%' },
   footer: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 22, marginTop: 24, flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 },
 });
