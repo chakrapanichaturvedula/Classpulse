@@ -8,7 +8,7 @@ Quiz opens the library picker. Selecting a saved quiz prepares its fixed session
 
 Quick-question icons open a small dialog. The question text is optional: the teacher may ask it aloud. MCQ uses 2–6 letter choices (default A–D), with choices spoken or shown on a board. True / False uses two fixed choices. Word Cloud accepts one word or short phrase, up to 80 characters. Start question launches immediately and opens Live Results.
 
-Quick questions are ungraded. MCQ/TF display counts and percentages of submitted responses. Word Cloud groups whole phrases by normalized case and whitespace, with repeated phrases rendered larger. It does not split phrases into words or remove punctuation. Names and individual responses can still be shown in the grid. Cloud/histogram summaries are visible without exposing names. Responses remain available after ending the activity.
+Quick questions are ungraded. MCQ/TF display counts and percentages of submitted responses. Word Cloud splits responses into individual words, ignores letter case and groups matching words. Each word counts once per student, even if repeated within that response. Word size reflects the number of students using it. Original responses remain unchanged in the response grid. Names and individual responses can still be shown in the grid. Cloud/histogram summaries are visible without exposing names. Responses remain available after ending the activity.
 
 Students join with the same room and roster ID as before, and each student has one immutable response per quick activity. For the next activity, students rejoin the room using Join another session/Join room; automatic transfer to a new session is not implemented yet. Existing quiz scoring, sequencing and student privacy remain unchanged.
 
@@ -20,13 +20,13 @@ Quick launch is atomic, teacher-owned and rejects occupied/foreign rooms, empty 
 2. If the room has an open quiz, open Live Results to end it using confirmation.
 3. Launch Multiple Choice with the default four options and no typed question. Ask a question aloud. Join two students and submit different letters; verify the live bars/counts.
 4. End it in Live Results, launch True / False, rejoin students and verify the split.
-5. Launch Word Cloud. Submit `Cash` and `cash` from different students; one larger term should represent both responses. A distinct phrase remains a separate term.
+5. Launch Word Cloud. Submit `CLOUD NORMAL CLOUD` and `cloud` from different students; cloud should represent two students and normal one student. Multiword replies contribute individual words.
 6. Verify individual names/responses can be shown, while no grades or average scores appear for quick questions.
 7. End the activity and confirm its saved results remain selectable.
 8. Launch a saved quiz: it opens Live Results in the waiting state. Start quiz there and check normal scores still work.
 
 After the functional checks, run `supabase/tests/quick_questions.sql` in a separate query. Expected: `PASS: quick questions, ungraded responses, word cloud limits and privacy verified; fixtures rolled back`.
 
-Local PostgreSQL checks passed for all three modes, retry deduplication, foreign/occupied room rejection, ungraded responses, short-phrase limits, internal RPC protection, ended response rejection and teacher privacy. Earlier answer/result tests also pass after the migration. Model checks cover phrase aggregation and letter labels. Deployed Supabase UI and realtime checks for these new modes remain pending; this is not a concurrency/load test.
+Local PostgreSQL checks passed for all three modes, retry deduplication, foreign/occupied room rejection, ungraded responses, short-phrase limits, internal RPC protection, ended response rejection and teacher privacy. Earlier answer/result tests also pass after the migration. Model checks cover word tokenization, student deduplication, case/Unicode normalization and letter labels. Deployed Supabase UI and realtime checks for these new modes remain pending; this is not a concurrency/load test.
 
-Browser review before installation confirmed all four icons and that End session/its Cancel confirmation are in Live Results. The existing active quiz was left open and its records were not changed. The new icons remain disabled until the setup is installed and the current activity is ended. New quick sessions, charts and cloud delivery still need the teacher’s deployed test.
+Browser review before installation confirmed all four icons and that End session/its Cancel confirmation are in Live Results. The existing active quiz was left open and its records were not changed. The new icons remain disabled until the setup is installed and the current activity is ended. The teacher has since verified MCQ student choices/live bars and Word Cloud submissions. The individual-word correction was checked on the saved CLOUD NORMAL CLOUD / cloud responses and produced cloud for two students and normal for one. True/False and the new deployed quick-question privacy check remain pending.

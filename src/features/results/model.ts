@@ -30,7 +30,16 @@ export function responseLabel(question:ResultQuestion,response:ResultResponse){
 }
 
 export function cloudTerms(responses:ResultResponse[]){
- const counts=new Map<string,{text:string;count:number}>();
- for(const r of responses){if(!r.answer_text)continue;const text=r.answer_text.normalize('NFKC').trim().replace(/\s+/g,' ');if(!text)continue;const key=text.toLowerCase();const item=counts.get(key);if(item)item.count++;else counts.set(key,{text,count:1});}
- return [...counts.values()].sort((a,b)=>b.count-a.count||a.text.localeCompare(b.text));
+ const counts=new Map<string,{text:string;students:Set<string>}>();
+ for(const response of responses){
+  if(!response.answer_text)continue;
+  const normalized=response.answer_text.normalize('NFKC').toLowerCase().replace(/[’‘]/g,"'");
+  // Preserve accents, apostrophes, hyphenated words and numeric percentages.
+  const words=normalized.match(/[\p{L}\p{M}\p{N}]+(?:['-][\p{L}\p{M}\p{N}]+)*(?:[.,]\p{N}+)*(?:%)?/gu)??[];
+  for(const word of new Set(words)){
+   let item=counts.get(word);if(!item){item={text:word,students:new Set()};counts.set(word,item);}
+   item.students.add(response.student_id);
+  }
+ }
+ return [...counts.values()].map(item=>({text:item.text,count:item.students.size})).sort((a,b)=>b.count-a.count||a.text.localeCompare(b.text));
 }

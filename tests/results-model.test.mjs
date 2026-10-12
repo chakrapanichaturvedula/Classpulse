@@ -32,8 +32,19 @@ test('decimal marks do not show floating-point rounding artifacts',()=>{
  const d=doc([response('1','q1',0.1),response('1','q2',0.2)]);d.questions=d.questions.map((q,i)=>({...q,points:i?0.2:0.1}));const s=summarize(d);assert.equal(s.totalPoints,0.3);assert.equal(s.rows[0].earned,0.3);assert.equal(s.rows[0].percent,100);
 });
 
-test('word cloud groups matching phrases without merging distinct answers',()=>{
- const rs=[' Cash ','cash','Fixed   Assets','fixed assets','100%','100'].map(answer_text=>({...response('1','q2',null),answer_text}));
- const terms=cloudTerms(rs);assert.equal(terms.length,4);assert.equal(terms.find(t=>t.text==='Cash').count,2);assert.equal(terms.find(t=>t.text==='Fixed Assets').count,2);
+test('word cloud splits words and merges case variants across students',()=>{
+ const rs=[{...response('1','q2',null),answer_text:'CLOUD NORMAL CLOUD'},{...response('2','q2',null),answer_text:'cloud'}];
+ assert.deepEqual(cloudTerms(rs),[{text:'cloud',count:2},{text:'normal',count:1}]);
+});
+test('repeated words and duplicate rows cannot inflate a student count',()=>{
+ const r={...response('1','q2',null),answer_text:'Cash cash, CASH!!!'};assert.deepEqual(cloudTerms([r,r]),[{text:'cash',count:1}]);
+});
+test('multiword replies contribute each word and preserve numeric meanings',()=>{
+ const rs=['Fixed   Assets','fixed assets','100%','100'].map((answer_text,i)=>({...response(String(i),'q2',null),answer_text}));
+ const terms=cloudTerms(rs);assert.equal(terms.length,4);assert.equal(terms.find(t=>t.text==='fixed').count,2);assert.equal(terms.find(t=>t.text==='assets').count,2);assert.equal(terms.find(t=>t.text==='100%').count,1);
+});
+test('cloud normalization handles Unicode words and equivalent apostrophes',()=>{
+ const rs=['ＣＬＯＵＤ नकद don’t','cloud नकद don\'t'].map((answer_text,i)=>({...response(String(i),'q2',null),answer_text}));
+ const terms=cloudTerms(rs);assert.equal(terms.find(t=>t.text==='cloud').count,2);assert.equal(terms.find(t=>t.text==='नकद').count,2);assert.equal(terms.find(t=>t.text==="don't").count,2);
 });
 test('oral multiple choice letters do not repeat in results labels',()=>{assert.equal(responseLabel({...questions[0],options:[{position:1,label:'A'}]},response('1','q1',null)),'A');});
