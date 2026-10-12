@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {Modal,Pressable,ScrollView,StyleSheet,Text,View,useWindowDimensions} from 'react-native';
 import {supabase} from '../lib/supabase';
-export type WorkspaceTab='launch'|'quizzes'|'classes'|'results';
+export type WorkspaceTab='launch'|'quizzes'|'classes'|'results'|'reports';
 type ClassRoom={id:string;name:string;room:string|null};
 export function TeacherToolbar({teacherId,teacherName,tab,selectedClass,onClassSelect,onTab,onHome,onSignOut,signingOut}:{teacherId:string;teacherName:string;tab:WorkspaceTab;selectedClass:string;onClassSelect:(id:string)=>void;onTab:(tab:WorkspaceTab)=>void;onHome:()=>void;onSignOut:()=>void;signingOut:boolean}){
  const {width}=useWindowDimensions();const wide=width>=900;
@@ -17,7 +17,7 @@ export function TeacherToolbar({teacherId,teacherName,tab,selectedClass,onClassS
  const selected=classes.find(c=>c.id===selectedClass);
  const initials=teacherName.trim().split(/\s+/).slice(0,2).map(n=>n[0]).join('').toUpperCase();
  const navigation=<ScrollView style={wide?{flex:1}:undefined} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabs}>
-   {([['launch','Launch'],['quizzes','Library'],['classes','Rooms'],['results','Live Results']] as const).map(([id,label])=><Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:tab===id}} onPress={()=>onTab(id)} style={[s.tab,tab===id&&s.active]}><Text style={[s.tabText,tab===id&&{color:'#0088B0'}]}>{label}</Text></Pressable>)}
+   {([['launch','Launch'],['quizzes','Library'],['classes','Rooms'],['reports','Reports'],['results','Live Results']] as const).map(([id,label])=><Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:tab===id}} onPress={()=>onTab(id)} style={[s.tab,tab===id&&s.active]}><Text style={[s.tabText,tab===id&&{color:'#0088B0'}]}>{label}</Text></Pressable>)}
   </ScrollView>;
  return <View style={s.bar}>
   <View style={s.top}>
@@ -29,8 +29,8 @@ export function TeacherToolbar({teacherId,teacherName,tab,selectedClass,onClassS
   <Modal visible={open} transparent animationType="fade" onRequestClose={()=>setOpen(false)}>
    <View style={s.overlay}><View accessibilityViewIsModal style={s.dialog}><View style={s.dialogHeader}><Text style={s.heading}>Select room</Text><Pressable accessibilityRole="button" accessibilityLabel="Close room selection" onPress={()=>setOpen(false)}><Text style={s.close}>×</Text></Pressable></View>
     {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-    <ScrollView style={{maxHeight:360}}>{classes.map(c=><Pressable key={c.id} accessibilityRole="button" accessibilityState={{selected:c.id===selectedClass}} onPress={()=>{onClassSelect(c.id);setOpen(false);}} style={[s.roomRow,c.id===selectedClass&&{backgroundColor:'#F0F7FA'}]}><Text style={s.roomText}>{c.room??'Room not created'}</Text><Text style={s.small}>{c.name}</Text></Pressable>)}</ScrollView>
-    {!classes.length&&!error&&<Text style={s.small}>Add a class in Rooms, then create its room in Launch.</Text>}
+    <ScrollView style={{maxHeight:360}}>{classes.map(c=><Pressable key={c.id} accessibilityRole="button" accessibilityState={{selected:c.id===selectedClass}} onPress={()=>{onClassSelect(c.id);setOpen(false);}} style={[s.roomRow,c.id===selectedClass&&{backgroundColor:'#F0F7FA'}]}><Text style={s.roomText}>{c.room??'Room not created'}</Text></Pressable>)}</ScrollView>
+    {!classes.length&&!error&&<Text style={s.small}>Add a room and upload its roster in Rooms.</Text>}
    </View></View>
   </Modal>
  </View>;

@@ -9,6 +9,7 @@ import { supabase } from './src/lib/supabase';
 import { RosterManager } from './src/features/rosters/RosterManager';
 import { QuizManager } from './src/features/quizzes/QuizManager';
 import { StudentEntry } from './src/features/students/StudentEntry';
+import { Reports } from './src/features/reports/Reports';
 import { LiveResults } from './src/features/results/LiveResults';
 import { LaunchManager } from './src/features/launch/LaunchManager';
 
@@ -36,7 +37,7 @@ export default function App() {
   const [selectedClass, setSelectedClass] = useState('');
   const [quizDirty, setQuizDirty] = useState(false);
   const [quizEpoch, setQuizEpoch] = useState(0);
-  const [pendingExit, setPendingExit] = useState<Page | 'classes' | 'launch' | 'results' | 'signout' | null>(null);
+  const [pendingExit, setPendingExit] = useState<Page | 'classes' | 'launch' | 'results' | 'reports' | 'signout' | null>(null);
   useEffect(() => { setQuizDirty(false); setPendingExit(null); setSelectedClass(''); setResultsSession(''); }, [auth.profile?.id]);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState('');
@@ -55,7 +56,7 @@ export default function App() {
   function discardAndContinue() {
     const action = pendingExit; setPendingExit(null); setQuizDirty(false); setQuizEpoch(value => value + 1);
     if (action === 'signout') void signOut(true);
-    else if (action === 'classes' || action === 'launch' || action === 'results') setWorkspaceTab(action);
+    else if (action === 'classes' || action === 'launch' || action === 'results' || action === 'reports') setWorkspaceTab(action);
     else if (action) { setPage(action); setPreview(null); }
   }
 
@@ -81,6 +82,7 @@ export default function App() {
           <View style={{ display: workspaceTab === 'quizzes' ? 'flex' : 'none' }}><QuizManager key={`${auth.profile.id}-${quizEpoch}`} teacherId={auth.profile.id} onDirtyChange={setQuizDirty} /></View>
           <View style={{ display: workspaceTab === 'launch' ? 'flex' : 'none' }}><LaunchManager key={auth.profile.id} teacherId={auth.profile.id} active={workspaceTab === 'launch'} selectedRosterId={selectedClass} onClassSelect={setSelectedClass} onResults={id=>{setResultsSession(id);setWorkspaceTab('results');}} /></View>
           <View style={{display:workspaceTab==='results'?'flex':'none'}}><LiveResults key={auth.profile.id} teacherId={auth.profile.id} active={workspaceTab==='results'} requestedSession={resultsSession}/></View>
+          <View style={{display:workspaceTab==='reports'?'flex':'none'}}><Reports teacherId={auth.profile.id} active={workspaceTab==='reports'} selectedRosterId={selectedClass}/></View>
           {!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}
         </> : auth.session ? <Card style={{ gap: 16 }}><Text style={s.cardTitle}>We could not open your workspace.</Text><Text accessibilityRole="alert" style={s.body}>{auth.profileError || 'Your teacher profile has not been verified.'}</Text><Button title="Retry workspace" onPress={auth.retryProfile} /><Button title={signingOut ? 'Signing out…' : 'Sign out'} secondary onPress={() => void signOut()} />{!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}</Card> : <TeacherAuthScreen onPreview={() => navigate('teacher')} />)}
 

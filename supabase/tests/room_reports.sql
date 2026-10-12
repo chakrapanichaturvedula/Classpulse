@@ -1,0 +1,40 @@
+begin;
+do $test$
+declare a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); c jsonb; room uuid; s jsonb; second jsonb; entry jsonb; feed jsonb; doc jsonb; denied boolean;
+ label text:='REPORT-'||upper(substr(md5(random()::text),1,10));
+begin
+ begin
+ insert into auth.users(id,email,raw_user_meta_data,is_anonymous) values(a,a::text||'@classpulse.invalid','{"full_name":"Reports A"}',false),(b,b::text||'@classpulse.invalid','{"full_name":"Reports B"}',false);
+ execute 'set local role authenticated';perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',false)::text,true);
+ c:=public.classpulse_save_room(null,lower(label));
+ select id into room from public.rooms where roster_id=(c->>'id')::uuid;
+ if (select room_name from public.rooms where id=room)<>label then raise exception 'FAIL: room name normalization'; end if;
+ perform public.classpulse_import_roster((c->>'id')::uuid,'[{"id":"001","name":"Test Student","emailid":""}]');
+ s:=public.classpulse_launch_quick(room,'quick_tf',2,'Report question','reports-first');
+ denied:=false;begin perform public.classpulse_save_room((c->>'id')::uuid,label||'-NEW');exception when raise_exception then denied:=true;end;
+ if not denied then raise exception 'FAIL: active room rename permitted';end if;
+ execute 'reset role';execute 'set local role anon';perform set_config('request.jwt.claims','{}',true);
+ entry:=public.classpulse_student_join(label,'001');feed:=public.classpulse_student_question((entry->>'token')::uuid);
+ perform public.classpulse_submit_answer((entry->>'token')::uuid,(feed->'question'->>'id')::uuid,1,null);
+ denied:=false;begin perform public.classpulse_live_results((s->>'id')::uuid);exception when insufficient_privilege then denied:=true;end;
+ if not denied then raise exception 'FAIL: student reads teacher report';end if;
+ execute 'reset role';execute 'set local role authenticated';perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',false)::text,true);
+ perform public.classpulse_end_session((s->>'id')::uuid);
+ perform public.classpulse_save_room((c->>'id')::uuid,label||'-NEW');
+ if (select id from public.rooms where roster_id=(c->>'id')::uuid)<>room then raise exception 'FAIL: rename replaced room identity';end if;
+ second:=public.classpulse_launch_quick(room,'quick_tf',2,'Report question','reports-second');perform public.classpulse_end_session((second->>'id')::uuid);
+ if (select count(*) from public.quiz_sessions where room_id=room and status='ended')<>2 then raise exception 'FAIL: repeated activities did not retain separate reports';end if;
+ doc:=public.classpulse_live_results((s->>'id')::uuid);
+ if jsonb_array_length(doc->'responses')<>1 or doc->>'room_name'<>label||'-NEW' then raise exception 'FAIL: saved response or renamed room report';end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'is_anonymous',false)::text,true);
+ if exists(select 1 from public.quiz_sessions where room_id=room) then raise exception 'FAIL: foreign report visible';end if;
+ denied:=false;begin perform public.classpulse_save_room((c->>'id')::uuid,'FOREIGN-ROOM');exception when raise_exception then denied:=true;end;
+ if not denied then raise exception 'FAIL: foreign teacher renamed room';end if;
+ denied:=false;begin perform public.classpulse_live_results((s->>'id')::uuid);exception when raise_exception then denied:=true;end;
+ if not denied then raise exception 'FAIL: foreign teacher read saved report';end if;
+ raise exception using errcode='CP001',message='rollback fixtures';
+ exception when sqlstate 'CP001' then null;
+ end;
+end $test$;
+select 'PASS: room identity, saved reports and teacher privacy verified; fixtures rolled back' as result;
+rollback;
