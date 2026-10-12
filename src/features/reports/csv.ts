@@ -1,4 +1,4 @@
-import {summarize,responseLabel,type ResultDocument} from '../results/model';
+import {summarize,type ResultDocument,type ResultQuestion,type ResultResponse} from '../results/model';
 
 // Quotes preserve commas, newlines and quotes; the apostrophe prevents spreadsheet formulas.
 export function csvCell(value:string|number):string {
@@ -6,17 +6,33 @@ export function csvCell(value:string|number):string {
  if(typeof value==='string'&&/^[\s\uFEFF]*[=+@-]/u.test(text))text="'"+text;
  return '"'+text.replace(/"/g,'""')+'"';
 }
+export function exportAnswer(question:ResultQuestion,answer:ResultResponse):string {
+ if(answer.answer_text!==null)return answer.answer_text;
+ const option=question.options.find(o=>o.position===answer.option_position);
+ if(!option)return '';
+ if(question.type==='true_false')return option.position===1?'T':'F';
+ const letter=String.fromCharCode(64+option.position);
+ return option.label===letter?letter:`${letter}. ${option.label}`;
+}
 export function reportCsv(doc:ResultDocument):string {
  const quick=!!doc.activity_type&&doc.activity_type!=='quiz',summary=summarize(doc);
- const header=['room','activity','session_id','activity_type','student_id','name','joined','answered','question_count','completion'];
- if(!quick)header.push('earned_points','possible_points','score_percent','grading_status');
- for(const q of doc.questions){header.push(`Q${q.position}: ${q.prompt} — answer`);if(!quick)header.push(`Q${q.position} — result`,`Q${q.position} — awarded_points`);}
+ const header=['Student Name','Student ID'];
+ if(!quick)header.push('Total Score (%)','Number of Correct Answers');
+ header.push(...doc.questions.map(q=>q.prompt));
  const rows:(string|number)[][]=[header];
+ const participants=summary.rows.filter(row=>row.student.joined||row.answered>0);
+ const round=(value:number)=>Math.round(value*100)/100;
+ const scored=participants.filter(row=>row.pending===0&&summary.totalPoints>0);
  for(const row of summary.rows){
-  const values:(string|number)[]=[doc.room_name,doc.quiz_title,doc.session_id,doc.activity_type??'quiz',row.student.code,row.student.name,row.student.joined?'Yes':'No',row.answered,doc.questions.length,row.complete?'Completed':'Incomplete'];
-  if(!quick)values.push(row.earned,summary.totalPoints,row.percent===null?'':Math.round(row.percent*100)/100,row.pending?'Pending':!row.complete?'Incomplete':summary.totalPoints===0?'Unscored':'Graded');
-  doc.questions.forEach((q,i)=>{const answer=row.cells[i];values.push(answer?responseLabel(q,answer):'');if(!quick)values.push(!answer?'Not answered':answer.is_correct===null?'Pending':answer.is_correct?'Correct':'Incorrect',answer?.awarded_points??'');});
+  const participated=row.student.joined||row.answered>0;
+  const values:(string|number)[]=[row.student.name,row.student.code];
+  if(!quick)values.push(!participated?'':row.pending?'Pending':summary.totalPoints?round(100*row.earned/summary.totalPoints):'',!participated?'':row.cells.some(a=>a&&a.is_correct===null)?'Pending':row.cells.filter(a=>a?.is_correct===true).length);
+  doc.questions.forEach((q,i)=>{const answer=row.cells[i];values.push(answer?exportAnswer(q,answer):'');});
   rows.push(values);
+ }
+ if(!quick){
+  const correctRows=participants.filter(row=>!row.cells.some(a=>a&&a.is_correct===null));
+  rows.push(['Class Scoring','',scored.length?round(scored.reduce((sum,row)=>sum+100*row.earned/summary.totalPoints,0)/scored.length):'',correctRows.length?round(correctRows.reduce((sum,row)=>sum+row.cells.filter(a=>a?.is_correct===true).length,0)/correctRows.length):'',...doc.questions.map((_q,i)=>participants.length&&!participants.some(row=>row.cells[i]?.is_correct===null)?round(100*participants.filter(row=>row.cells[i]?.is_correct===true).length/participants.length):'')]);
  }
  return '\uFEFF'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }
