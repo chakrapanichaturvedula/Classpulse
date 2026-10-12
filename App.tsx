@@ -2,8 +2,11 @@ import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { demoQuizzes, demoRoom, demoStudents } from './src/data/demo';
+import { TeacherAuthScreen } from './src/features/auth/TeacherAuthScreen';
+import { useTeacherAuth } from './src/features/auth/useTeacherAuth';
+import { supabase } from './src/lib/supabase';
 
-type Page = 'home' | 'teacher' | 'student';
+type Page = 'home' | 'teacher' | 'student' | 'account';
 type Tab = 'Overview' | 'Quizzes' | 'Roster';
 type Student = typeof demoStudents[number];
 const colors = { ink: '#193C38', muted: '#61736E', paper: '#F6F5EF', white: '#FFFFFF', line: '#DFE6DD', teal: '#256B5B', pale: '#EAF1E8', orange: '#B75432' };
@@ -26,6 +29,18 @@ export default function App() {
   const [error, setError] = useState('');
   const [joined, setJoined] = useState<Student | null>(null);
   const [preview, setPreview] = useState<number | null>(null);
+  const auth = useTeacherAuth();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState('');
+  async function signOut() {
+    if (!supabase || signingOut) return;
+    setSigningOut(true); setSignOutError('');
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) setSignOutError('Could not sign out. Check your connection and try again.');
+    } catch { setSignOutError('Could not sign out. Please try again.'); }
+    finally { setSigningOut(false); }
+  }
 
   function navigate(next: Page) { setPage(next); setError(''); setJoined(null); setPreview(null); }
   function join() {
@@ -48,7 +63,17 @@ export default function App() {
           </Pressable>
           {page !== 'home' ? <Button title="Home" secondary onPress={() => navigate('home')} /> : <Tag>Made for your classroom</Tag>}
         </View>
-        <View style={s.notice}><Text style={s.noticeText}>STEP 1 PREVIEW · Fictional sample data. No login, live session, or saved changes yet.</Text></View>
+        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 2 · Teacher login connected. Sample classrooms remain fictional; live quizzes arrive later.' : 'STEP 2 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
+
+        {page === 'account' && (auth.loading ? <Card><Text style={s.body}>Opening your workspace…</Text></Card> : auth.profile && auth.session && auth.profile.id === auth.session.user.id ? <>
+          <View style={s.pageHeading}><Text style={s.eyebrow}>YOUR PRIVATE TEACHER WORKSPACE</Text><Text accessibilityRole="header" style={s.title}>Welcome, {auth.profile.full_name}.</Text><Text style={s.body}>{auth.session.user.email}</Text></View>
+          <View style={[s.columns, wide && { flexDirection: 'row' }]}>
+            <Card style={{ flex: 1, gap: 16 }}><Text style={s.cardTitle}>Your classes</Text><Text style={s.body}>Create multiple named class rosters and import student lists in Step 3. Your workspace has no classes yet.</Text></Card>
+            <Card style={{ flex: 1, gap: 16 }}><Text style={s.cardTitle}>Your quiz folders</Text><Text style={s.body}>Organize quizzes by year, subject, and section in Step 4. Your workspace has no quizzes yet.</Text></Card>
+          </View>
+          {!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}
+          <Button title={signingOut ? 'Signing out…' : 'Sign out'} secondary onPress={() => void signOut()} />
+        </> : auth.session ? <Card style={{ gap: 16 }}><Text style={s.cardTitle}>We could not open your workspace.</Text><Text accessibilityRole="alert" style={s.body}>{auth.profileError || 'Your teacher profile has not been verified.'}</Text><Button title="Retry workspace" onPress={auth.retryProfile} /><Button title={signingOut ? 'Signing out…' : 'Sign out'} secondary onPress={() => void signOut()} />{!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}</Card> : <TeacherAuthScreen onPreview={() => navigate('teacher')} />)}
 
         {page === 'home' && <>
           <View style={[s.hero, wide && { flexDirection: 'row', alignItems: 'center' }]}>
@@ -66,7 +91,7 @@ export default function App() {
             </Card>
           </View>
           <View style={[s.columns, wide && { flexDirection: 'row' }]}>
-            <Card style={{ flex: 1, gap: 16 }}><Text style={s.eyebrow}>FOR TEACHERS</Text><Text accessibilityRole="header" style={s.cardTitle}>Your teaching workspace</Text><Text style={s.body}>Explore the sample dashboard, quiz library, and class roster.</Text><Button title="Explore teacher dashboard →" onPress={() => navigate('teacher')} /></Card>
+            <Card style={{ flex: 1, gap: 16 }}><Text style={s.eyebrow}>FOR TEACHERS</Text><Text accessibilityRole="header" style={s.cardTitle}>Your teaching workspace</Text><Text style={s.body}>Sign in to your own workspace, or explore the sample dashboard from the sign-in screen.</Text><Button title={auth.profile ? 'Open my workspace →' : 'Teacher sign in →'} onPress={() => navigate('account')} /></Card>
             <Card style={{ flex: 1, gap: 16 }}><Text style={s.eyebrow}>FOR STUDENTS</Text><Text accessibilityRole="header" style={s.cardTitle}>A quick way into class</Text><Text style={s.body}>Try entering a room with a student ID. No student password to remember.</Text><Button title="Open student entry →" secondary onPress={() => navigate('student')} /></Card>
           </View>
         </>}
@@ -107,7 +132,7 @@ export default function App() {
             </>}
           </Card>
         </View>}
-        <View style={s.footer}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 1 of 10</Text></View>
+        <View style={s.footer}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 2 of 10</Text></View>
       </View>
     </ScrollView>
   </View>;

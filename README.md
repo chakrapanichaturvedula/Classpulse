@@ -2,8 +2,8 @@
 
 A classroom assessment app for a small group of college teachers. Maximum planned class size: 150 students.
 
-## Step 1 is ready for review
-Welcome page, teacher dashboard with sample quiz and roster views, and student entry with a fictional waiting room. This preview is entirely local: there is no real authentication, live quiz, database persistence or email sending yet.
+## Step 2 is prepared; Supabase connection is pending
+Welcome page, teacher dashboard with sample quiz and roster views, and student entry with a fictional waiting room. The teacher signup/login flow is implemented, but real accounts require a configured Supabase project and the Step 2 migration. Sample student entry remains local. There is no live quiz or report email sending yet.
 
 ### Try it on Windows
 Double-click Start-Classpulse.cmd in this folder. Keep its window open, then open http://localhost:8081 in your browser. Close the window when you are finished.
@@ -12,7 +12,7 @@ The launcher uses an installed pnpm/npm, or the bundled Codex runtime if availab
 
 Sample room: DEMO101. Sample student IDs: 25A2HP001, 25A2HP002, 25A2HP003. All names and records in the preview are fictional.
 
-See docs/step-01-testing.md for the review checklist. To test on a phone, connect to the same Wi-Fi and use the laptop's network address; localhost on a phone refers to the phone itself.
+See docs/step-02-setup.md for teacher account setup and verification. Step 1 checks remain in docs/step-01-testing.md. To test on a phone, connect to the same Wi-Fi and use the laptop's network address; localhost on a phone refers to the phone itself.
 
 ## Agreed scope
 - Teacher quiz creation and live classroom session controls.
@@ -33,4 +33,4 @@ React Native, Expo and TypeScript. Later stages add Supabase authentication, Pos
 Never commit real rosters, credentials, database exports or private student reports. The GitHub repository is currently public. .env.example contains documentation only.
 
 ## Next stage
-Step 2: connect Supabase and implement teacher authentication after Step 1 review.
+Finish Step 2 by connecting Supabase and testing two teacher accounts and database isolation. Then Step 3 adds multiple named class rosters. Step 4 adds quizzes organized in folders and subfolders.
