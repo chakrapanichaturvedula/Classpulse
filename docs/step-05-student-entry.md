@@ -18,3 +18,5 @@ An unguessable session token is kept in memory and in a private server table. Pu
 Questions, answer submissions, launch modes and live results are subsequent milestones. No emails are sent here.
 
 The SQL test `supabase/tests/student_entry.sql` uses fictional fixtures in a transaction and rolls them back. Local validation does not replace testing on the connected Supabase project.
+
+The privacy test now retains fixture IDs in a single procedural block, without temporary-table lookups across role changes. A deliberate, specifically caught exception rolls back test writes within that block; unexpected failures propagate. Local checks also cover an empty search path and running the block alone. The teacher has verified valid student entry, joined counts, invalid-ID rejection and rejection after session end on the connected project; the revised deployed privacy check is pending.
