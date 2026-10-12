@@ -24,7 +24,7 @@ export function StudentEntry(){
   <Text accessibilityRole="header" style={s.title}>{entry?'Your classroom':'Join your classroom'}</Text>
   {entry?<>
    <Text style={s.title}>Welcome, {entry.full_name}.</Text><Text style={s.body}>Room {entry.room_name} · {entry.student_code}</Text>
-   <Text style={s.body}>Quiz: {entry.quiz_title}</Text>
+   <Text style={s.body}>Activity: {entry.quiz_title}</Text>
    <StudentQuiz key={entry.token} token={entry.token} onStatus={status=>setEntry(current=>current&&current.status!==status?{...current,status}:current)}/>
    {button(entry.status==='ended'?'Join another session':'Leave waiting room',()=>{setEntry(null);})}
    <Text style={s.body}>If you refresh, rejoin with the same room and Student ID. Your saved answers will remain.</Text>

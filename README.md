@@ -2,8 +2,8 @@
 
 A classroom assessment app for a small group of college teachers. Maximum planned class size: 150 students.
 
-## Working classroom flow with a minimal teacher interface
-Teacher login, named class rosters, CSV imports, quiz authoring, rooms, student entry, ordered questions, saved answers and Live Results have passed teacher review on the connected project, including the live-results privacy test. The interface now uses familiar Launch / Library / Rooms / Live Results navigation, compact lists, dialogs and a white/blue palette. See docs/ui-review.md for the UI review; no new database setup is needed for it. Manual grading controls, additional launch modes, exports and emails remain forthcoming.
+## Launch activity icons and quick questions are ready for setup
+The working classroom flow has a minimal teacher interface. Launch now offers Quiz, Multiple Choice, True / False and Word Cloud activities. Oral quick questions require no saved quiz and show ungraded counts or a live word cloud. Start/End session controls are in Live Results. Install the new migration and follow docs/step-08-quick-questions.md to review these modes; normal classroom and privacy checks have already passed earlier teacher review.
 
 ### Try it on Windows
 Double-click Start-Classpulse.cmd in this folder. Keep its window open, then open http://localhost:8081 in your browser. Close the window when you are finished.
@@ -33,4 +33,4 @@ React Native, Expo and TypeScript. Supabase authentication and PostgreSQL are co
 Never commit real rosters, credentials, database exports or private student reports. The GitHub repository is currently public. .env.example contains documentation only.
 
 ## Next stage
-Review the minimal interface with faculty. Manual grading, report exports and additional launch settings follow later.
+Install and review quick questions and their privacy check. Manual grading, reports and more quiz launch settings follow later.

@@ -1,7 +1,7 @@
 export type ResultQuestion={id:string;position:number;prompt:string;type:string;points:number;options:{position:number;label:string}[]};
 export type ResultStudent={id:string;name:string;code:string;joined:boolean};
 export type ResultResponse={student_id:string;question_id:string;option_position:number|null;answer_text:string|null;is_correct:boolean|null;awarded_points:number|null};
-export type ResultDocument={session_id:string;quiz_title:string;class_name:string;room_name:string;status:string;questions:ResultQuestion[];students:ResultStudent[];responses:ResultResponse[]};
+export type ResultDocument={activity_type?:'quiz'|'quick_mcq'|'quick_tf'|'word_cloud';session_id:string;quiz_title:string;class_name:string;room_name:string;status:string;questions:ResultQuestion[];students:ResultStudent[];responses:ResultResponse[]};
 export function summarize(doc:ResultDocument){
  const byStudent=new Map<string,Map<string,ResultResponse>>();
  for(const response of doc.responses){let answers=byStudent.get(response.student_id);if(!answers){answers=new Map();byStudent.set(response.student_id,answers);}answers.set(response.question_id,response);}
@@ -26,5 +26,11 @@ export function responseLabel(question:ResultQuestion,response:ResultResponse){
  if(response.answer_text!==null)return response.answer_text;
  const option=question.options.find(o=>o.position===response.option_position);
  if(!option)return 'Submitted';
- return question.type==='true_false'?option.label:`${String.fromCharCode(64+option.position)} · ${option.label}`;
+ return question.type==='true_false'||option.label===String.fromCharCode(64+option.position)?option.label:`${String.fromCharCode(64+option.position)} · ${option.label}`;
+}
+
+export function cloudTerms(responses:ResultResponse[]){
+ const counts=new Map<string,{text:string;count:number}>();
+ for(const r of responses){if(!r.answer_text)continue;const text=r.answer_text.normalize('NFKC').trim().replace(/\s+/g,' ');if(!text)continue;const key=text.toLowerCase();const item=counts.get(key);if(item)item.count++;else counts.set(key,{text,count:1});}
+ return [...counts.values()].sort((a,b)=>b.count-a.count||a.text.localeCompare(b.text));
 }

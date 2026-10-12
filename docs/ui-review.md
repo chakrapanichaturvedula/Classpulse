@@ -1,6 +1,8 @@
-# Minimal interface review
+# Minimal interface review (first UI pass)
 
-The teacher workspace now uses a white/blue palette and a fixed navigation bar: Launch, Library, Rooms, Live Results. The selected classroom room and teacher account controls stay in the bar. Desktop uses one row; smaller screens use a compact header and scrolling tabs. Unimplemented features are not shown as working navigation items.
+For the later activity icons and moved Live Results controls, see docs/step-08-quick-questions.md; that feature update requires its own migration.
+
+This first UI pass uses a white/blue palette and a fixed navigation bar: Launch, Library, Rooms, Live Results. The selected classroom room and teacher account controls stay in the bar. Desktop uses one row; smaller screens use a compact header and scrolling tabs. Unimplemented features are not shown as working navigation items.
 
 Library uses folder/quiz rows, Personal breadcrumbs, folder drill-down, global search and an All quizzes view. New Folder and Rename folder open small dialogs rather than permanent forms. Opening a quiz switches to the editor, with Save and Exit and a Library return control. Existing save/version behavior and unsaved-edit protection remain in place.
 

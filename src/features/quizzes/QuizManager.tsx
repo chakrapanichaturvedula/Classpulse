@@ -34,7 +34,7 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
  async function loadLibrary() {
   const results=await Promise.all([
    supabase!.from('quiz_folders').select('id,name,parent_id').eq('teacher_id',teacherId).order('name'),
-   supabase!.from('quizzes').select('id,title,folder_id').eq('teacher_id',teacherId).order('created_at',{ascending:false}),
+   supabase!.from('quizzes').select('id,title,folder_id').eq('teacher_id',teacherId).eq('source_kind','library').order('created_at',{ascending:false}),
    supabase!.from('quiz_versions').select('quiz_id,version_number,status').eq('teacher_id',teacherId).order('version_number',{ascending:false}),
   ]);
   if(!alive.current)return;

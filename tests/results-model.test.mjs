@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {summarize,responseLabel} from '../src/features/results/model.ts';
+import {summarize,cloudTerms,responseLabel} from '../src/features/results/model.ts';
 const questions=[{id:'q1',position:1,type:'multiple_choice',prompt:'Asset?',points:2,options:[{position:1,label:'Cash'}]},{id:'q2',position:2,type:'short_answer',prompt:'Explain',points:3,options:[]}];
 const student=id=>({id,name:`Student ${id}`,code:`00${id}`,joined:id!=='3'});
 const response=(student_id,question_id,awarded_points)=>({student_id,question_id,option_position:question_id==='q1'?1:null,answer_text:question_id==='q2'?'Explanation':null,is_correct:awarded_points===null?null:awarded_points>0,awarded_points});
@@ -31,3 +31,9 @@ test('shows the chosen option text, true/false labels and complete short answers
 test('decimal marks do not show floating-point rounding artifacts',()=>{
  const d=doc([response('1','q1',0.1),response('1','q2',0.2)]);d.questions=d.questions.map((q,i)=>({...q,points:i?0.2:0.1}));const s=summarize(d);assert.equal(s.totalPoints,0.3);assert.equal(s.rows[0].earned,0.3);assert.equal(s.rows[0].percent,100);
 });
+
+test('word cloud groups matching phrases without merging distinct answers',()=>{
+ const rs=[' Cash ','cash','Fixed   Assets','fixed assets','100%','100'].map(answer_text=>({...response('1','q2',null),answer_text}));
+ const terms=cloudTerms(rs);assert.equal(terms.length,4);assert.equal(terms.find(t=>t.text==='Cash').count,2);assert.equal(terms.find(t=>t.text==='Fixed Assets').count,2);
+});
+test('oral multiple choice letters do not repeat in results labels',()=>{assert.equal(responseLabel({...questions[0],options:[{position:1,label:'A'}]},response('1','q1',null)),'A');});

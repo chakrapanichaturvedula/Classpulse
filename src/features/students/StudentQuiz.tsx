@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {Pressable,StyleSheet,Text,TextInput,View} from 'react-native';
 import {studentSupabase} from '../../lib/supabase';
 type Question={id:string;position:number;type:string;prompt:string;points:number;options:{position:number;label:string}[]};
-type Feed={status:string;total:number;answered:number;completed:boolean;question:Question|null};
+type Feed={activity_type?:string;status:string;total:number;answered:number;completed:boolean;question:Question|null};
 export function StudentQuiz({token,onStatus}:{token:string;onStatus:(status:string)=>void}){
  const [feed,setFeed]=useState<Feed|null>(null),[option,setOption]=useState<number|null>(null),[answer,setAnswer]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[connection,setConnection]=useState('');
  const alive=useRef(false),working=useRef(false),sequence=useRef(0),questionId=useRef<string|null>(null),callback=useRef(onStatus);callback.current=onStatus;
@@ -37,10 +37,10 @@ export function StudentQuiz({token,onStatus}:{token:string;onStatus:(status:stri
  }
  const q=feed?.question;
  return <View style={s.section}>
-  {!feed?<Text style={s.body}>Checking your classroom…</Text>:feed.status==='ended'?<Text style={s.heading}>This session has ended.</Text>:feed.status==='lobby'?<><Text style={s.heading}>You are in the waiting room.</Text><Text style={s.body}>Your teacher will start the quiz. Keep this page open.</Text></>:feed.status==='paused'?<Text style={s.heading}>Your teacher has paused the quiz.</Text>:feed.completed?<><Text style={s.heading}>All answers submitted.</Text><Text style={s.body}>{feed.answered} of {feed.total} answers saved. Wait for your teacher to finish the session.</Text></>:q?<>
+  {!feed?<Text style={s.body}>Checking your classroom…</Text>:feed.status==='ended'?<Text style={s.heading}>This session has ended.</Text>:feed.status==='lobby'?<><Text style={s.heading}>You are in the waiting room.</Text><Text style={s.body}>Your teacher will start the quiz. Keep this page open.</Text></>:feed.status==='paused'?<Text style={s.heading}>Your teacher has paused the quiz.</Text>:feed.completed?<><Text style={s.heading}>{feed.activity_type&&feed.activity_type!=='quiz'?'Response submitted.':'All answers submitted.'}</Text><Text style={s.body}>{feed.answered} of {feed.total} answers saved. Wait for your teacher to finish the session.</Text></>:q?<>
    <Text style={s.body}>Question {q.position} of {feed.total} · {feed.answered} answers saved</Text>
    <Text accessibilityRole="header" style={s.heading}>{q.prompt}</Text>
-   {q.type==='short_answer'?<TextInput accessibilityLabel="Your answer" value={answer} onChangeText={setAnswer} editable={!busy} multiline maxLength={4000} style={s.input} placeholder="Type your answer"/>:q.options.map(o=><Pressable key={o.position} accessibilityRole="radio" accessibilityState={{checked:option===o.position,disabled:busy}} disabled={busy} onPress={()=>setOption(o.position)} style={[s.choice,option===o.position&&s.selected]}><Text style={[s.body,option===o.position&&{color:'white'}]}>{o.label}</Text></Pressable>)}
+   {q.type==='short_answer'?<TextInput accessibilityLabel="Your answer" value={answer} onChangeText={setAnswer} editable={!busy} multiline maxLength={feed?.activity_type==='word_cloud'?80:4000} style={s.input} placeholder={feed?.activity_type==='word_cloud'?'One word or short phrase':'Type your answer'}/>:q.options.map(o=><Pressable key={o.position} accessibilityRole="radio" accessibilityState={{checked:option===o.position,disabled:busy}} disabled={busy} onPress={()=>setOption(o.position)} style={[s.choice,option===o.position&&s.selected]}><Text style={[s.body,option===o.position&&{color:'white'}]}>{o.label}</Text></Pressable>)}
    <Text style={s.body}>Once submitted, your answer is saved and cannot be changed.</Text>
    <Pressable accessibilityRole="button" accessibilityState={{disabled:busy}} disabled={busy} onPress={()=>void submit()} style={[s.button,busy&&{opacity:0.5}]}><Text style={s.buttonText}>{busy?'Saving…':'Submit answer'}</Text></Pressable>
   </>:<Text style={s.body}>Waiting for your next question…</Text>}
