@@ -1,0 +1,40 @@
+begin;
+do $test$
+declare a uuid:=gen_random_uuid();b uuid:=gen_random_uuid();c jsonb;room uuid;first_session uuid;second_session uuid;active_session uuid;denied boolean;answer jsonb;feed jsonb;label text:='DELETE-'||upper(substr(md5(random()::text),1,10));
+begin
+ begin
+ insert into auth.users(id,email,raw_user_meta_data,is_anonymous) values(a,a::text||'@classpulse.invalid','{"full_name":"Delete A"}',false),(b,b::text||'@classpulse.invalid','{"full_name":"Delete B"}',false);
+ execute 'set local role authenticated';perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',false)::text,true);
+ c:=public.classpulse_save_room(null,label);select id into room from public.rooms where roster_id=(c->>'id')::uuid;
+ perform public.classpulse_import_roster((c->>'id')::uuid,'[{"id":"001","name":"Test Student","emailid":""}]');
+ first_session:=(public.classpulse_launch_quick(room,'quick_tf',2,'Question','delete-1')->>'id')::uuid;
+ execute 'reset role';execute 'set local role anon';perform set_config('request.jwt.claims','{}',true);
+ answer:=public.classpulse_student_join(label,'001');feed:=public.classpulse_student_question((answer->>'token')::uuid);
+ perform public.classpulse_submit_answer((answer->>'token')::uuid,(feed->'question'->>'id')::uuid,1,null);
+ denied:=false;begin perform public.classpulse_set_report_deleted(array[first_session],true);exception when insufficient_privilege then denied:=true;end;
+ if not denied then raise exception 'FAIL: student can delete report';end if;
+ execute 'reset role';execute 'set local role authenticated';perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',false)::text,true);
+ perform public.classpulse_end_session(first_session);
+ second_session:=(public.classpulse_launch_quick(room,'quick_tf',2,'Question','delete-2')->>'id')::uuid;perform public.classpulse_end_session(second_session);
+ active_session:=(public.classpulse_launch_quick(room,'quick_tf',2,'Question','delete-active')->>'id')::uuid;
+ denied:=false;begin perform public.classpulse_set_report_deleted(array[first_session,active_session],true);exception when raise_exception then denied:=true;end;
+ if not denied or exists(select 1 from public.quiz_sessions where report_deleted_at is not null) then raise exception 'FAIL: active deletion or partial mutation';end if;
+ denied:=false;begin perform public.classpulse_set_report_deleted(array[first_session,first_session],true);exception when raise_exception then denied:=true;end;
+ if not denied then raise exception 'FAIL: duplicate IDs accepted';end if;
+ if public.classpulse_set_report_deleted(array[first_session,second_session],true)<>2 then raise exception 'FAIL: bulk delete count';end if;
+ if (select count(*) from public.quiz_sessions where status='ended' and report_deleted_at is null)<>0 or (select count(*) from public.quiz_sessions where report_deleted_at is not null)<>2 then raise exception 'FAIL: report list filters';end if;
+ if jsonb_array_length(public.classpulse_live_results(first_session)->'responses')<>1 then raise exception 'FAIL: delete removed saved answers';end if;
+ perform public.classpulse_set_report_deleted(array[first_session],true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'is_anonymous',false)::text,true);
+ denied:=false;begin perform public.classpulse_set_report_deleted(array[first_session],false);exception when raise_exception then denied:=true;end;
+ if not denied or exists(select 1 from public.quiz_sessions where report_deleted_at is not null) then raise exception 'FAIL: foreign teacher restored or read report';end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',false)::text,true);
+ perform public.classpulse_set_report_deleted(array[first_session,second_session],false);
+ if exists(select 1 from public.quiz_sessions where report_deleted_at is not null) or jsonb_array_length(public.classpulse_live_results(first_session)->'responses')<>1 then raise exception 'FAIL: restore did not preserve answers';end if;
+ if (select count(*) from public.roster_students)<>1 or (select count(*) from public.quizzes)<>3 then raise exception 'FAIL: deletion changed roster or quiz library';end if;
+ raise exception using errcode='CP001',message='rollback fixtures';
+ exception when sqlstate 'CP001' then null;
+ end;
+end $test$;
+select 'PASS: report delete, restore, saved answers and teacher privacy verified; fixtures rolled back' as result;
+rollback;

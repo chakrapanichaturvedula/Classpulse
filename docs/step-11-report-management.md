@@ -1,0 +1,11 @@
+# Reports table and recoverable deletion
+
+The Reports list now follows the supplied Socrative reference: checkbox selection, linked activity name, date with time beneath, current room name and activity type. Search uses an explicit Search button/Enter. Name/date headings toggle sort order. The selected room in the teacher toolbar supplies the default filter; All rooms lists the teacher's own completed activities across rooms. Pagination remains 25 rows and Select all applies only to the current page. Filters/page changes clear selections. Small screens scroll the table sideways.
+
+Delete selected opens a confirmation dialog and moves ended sessions into Deleted. Restore selected moves them back. Deletion is reversible: session UUIDs, saved quiz/roster snapshots and student answers are retained, and storage is not reclaimed. The quizzes and room rosters are unchanged. Deleted reports can be opened and exported from Deleted, but are omitted from the normal report list and Live Results session picker. No permanent purge is provided.
+
+Apply migration 202610120010_report_deletion.sql once after migrations 1–9. It adds report_deleted_at with a constraint rejecting deleted active sessions and a teacher-only RPC that validates every ID before updating a batch of 1–25. Cross-teacher, student, duplicate-ID and active-session mutations are rejected; failed batches change nothing. Existing RLS/read grants remain in force. Run supabase/tests/report_deletion.sql separately; expected PASS: report delete, restore, saved answers and teacher privacy verified; fixtures rolled back.
+
+Before applying the migration, the table can display older data in read-only mode; Delete/Restore remain disabled with a setup note. The Live Results picker likewise falls back to its prior query until installation. Public SQL tests use temporary fixtures rolled back in an exception subtransaction.
+
+Local checks: all earlier SQL checks plus report deletion/restore/privacy passed; TypeScript and web export passed. Browser review confirmed the table, current CF2026 room, selection, and search/sorting using existing reports. No real classroom report was deleted during agent testing. Cloud migration, delete/restore user check and deployed privacy test await user execution.

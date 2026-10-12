@@ -17,7 +17,10 @@ export function LiveResults({teacherId,active,requestedSession,report=false}:{te
   if(!active||report)return;let cancelled=false;
   async function list(){
    try{
-    const {data,error}=await supabase!.from('quiz_sessions').select('id,roster_id,quiz_title_snapshot,class_name_snapshot,created_at,status').eq('teacher_id',teacherId).order('created_at',{ascending:false}).limit(50);
+    const query=()=>supabase!.from('quiz_sessions').select('id,roster_id,quiz_title_snapshot,class_name_snapshot,created_at,status').eq('teacher_id',teacherId).order('created_at',{ascending:false}).limit(50);
+    let listed=await query().is('report_deleted_at',null);
+    if(listed.error?.code==='42703'||listed.error?.code==='PGRST204')listed=await query();
+    const {data,error}=listed;
     if(cancelled)return;if(error)throw new Error('Could not load sessions. Check your connection.');
     const rows=data??[];setSessions(rows);setSessionId(current=>current||rows[0]?.id||'');
    }catch(error){if(!cancelled)setError(error instanceof Error?error.message:'Could not load sessions.');}
