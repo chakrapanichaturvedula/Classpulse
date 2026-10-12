@@ -3,7 +3,11 @@ export type StoredQuestion = { type: QuestionKind; prompt: string; points: numbe
 export type QuizDocument = { quiz_id: string; folder_id: string | null; title: string; version_id: string; revision: number; version_number: number; status: 'draft' | 'published'; questions: StoredQuestion[] };
 export type EditorQuestion = Omit<StoredQuestion, 'points' | 'accepted_answers'> & { key: string; points: string; acceptedText: string };
 export function newQuestion(type: QuestionKind): EditorQuestion {
- return { key: `${Date.now()}-${Math.random()}`, type, prompt: '', points: '1', options: type === 'true_false' ? ['True','False'] : type === 'multiple_choice' ? ['',''] : [], correct_position: null, acceptedText: '', manual_grading: false };
+ return { key: `${Date.now()}-${Math.random()}`, type, prompt: '', points: '1', options: type === 'true_false' ? ['True','False'] : type === 'multiple_choice' ? ['','','',''] : [], correct_position: null, acceptedText: '', manual_grading: false };
+}
+export function removeQuizOption(q:EditorQuestion,index:number):Partial<EditorQuestion>{
+ if(q.type!=='multiple_choice'||q.options.length<=2||index<0||index>=q.options.length)return {};
+ return {options:q.options.filter((_,i)=>i!==index),correct_position:q.correct_position===index+1?null:q.correct_position!==null&&q.correct_position>index+1?q.correct_position-1:q.correct_position};
 }
 export function editQuestions(questions: StoredQuestion[]): EditorQuestion[] {
  return questions.map(q => ({ ...q, key: `${Date.now()}-${Math.random()}`, points: String(q.points), acceptedText: q.accepted_answers.join('\n') }));

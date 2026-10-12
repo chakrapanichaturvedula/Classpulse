@@ -1,0 +1,15 @@
+# Excel quiz import
+
+Library > Add Quiz > Excel Template now offers Import Excel quiz, with a downloadable .xlsx template. The Questions sheet has type, question, option_a through option_f, correct_answer and points. Instructions explain the three examples. ExcelJS 4.4 reads files in the browser and loads only when importing; the production export puts it in a separate approximately 944 KB chunk. Native file import remains a browser workflow.
+
+MCQ uses 2–6 contiguous choices and a correct letter A–F (numeric 1–6 also accepted). TF uses fixed True/False choices and a True/False or T/F answer. SHORT uses pipe-separated accepted aliases; an empty answer means manual grading. Blank points default to 1, while explicit zero is preserved. Validation mirrors database length, count and payload limits: 1–100 questions, question 4000 characters, options 1000 characters, at most 20 aliases of 1000 characters, marks 0–1000 with two decimals, and serialized questions at most 512 KiB.
+
+Preview requires all template headers exactly once, disallows unknown headers, and rejects bad types, option gaps, unsupported cell values, formulas, merged question cells and images. Files must be unencrypted .xlsx and smaller than 2 MB; the reader also bounds worksheet dimensions. Instructions and other sheets are ignored. Formula results are not silently substituted for formulas. All row errors block Open in editor, avoiding partial imports. Cancelling or replacing an upload clears stale previews and ignores results from a closed dialog.
+
+Import first creates an unsaved editor draft; it never overwrites a saved quiz. The current folder is the default destination and can be changed before Save and Exit. Saving uses the existing teacher-owned classpulse_save_quiz RPC and version logic. No migration or additional database grants are needed. Files are read locally; only saved questions go to Supabase.
+
+Template authoring used the bundled Artifact Tool with visual review of both sheets. The exported spreadsheet namespace was normalized to standard default OpenXML namespaces for ExcelJS interoperability, then reopened using the actual browser reader to verify all rows and dropdown validation. The checked-in public file is copied by Expo export; no authoring dependency is added to the runtime.
+
+Validated locally: six import tests and four existing quiz-model tests passed; TypeScript and clean web export passed. Browser upload showed all three questions, options/answer keys and aliases, and Open in editor populated the existing editor. The test draft was discarded without saving. Faculty Save and Exit / launch test is pending.
+
+Faculty approved publishing the Excel import and revised quiz creator. The tested update is ready for main; Cloudflare Pages builds on a main-branch push. An imported quiz save/launch check on the live site remains part of faculty release testing. Existing live classroom records and Supabase setup are retained. Pending stages: quiz PDF with/without answer keys, question-wise PDF results, then Word import and richer formula/image handling.
