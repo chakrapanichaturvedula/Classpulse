@@ -8,7 +8,7 @@ type Roster = { id: string; name: string };
 function Action({ title, disabled, onPress }: { title: string; disabled?: boolean; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[s.button, disabled && { opacity: 0.45 }]}><Text style={s.buttonText}>{title}</Text></Pressable>;
 }
-export function RosterManager({ teacherId }: { teacherId: string }) {
+export function RosterManager({ teacherId, selectedRosterId, onClassSelect }: { teacherId: string; selectedRosterId?: string; onClassSelect?: (id: string) => void }) {
   const [rosters, setRosters] = useState<Roster[]>([]), [selected, setSelected] = useState('');
   const [name, setName] = useState(''), [rename, setRename] = useState('');
   const [students, setStudents] = useState<RosterRow[]>([]), [preview, setPreview] = useState<CsvPreview | null>(null);
@@ -18,6 +18,8 @@ export function RosterManager({ teacherId }: { teacherId: string }) {
   const saving = useRef(false);
   const selectedRef = useRef(selected); selectedRef.current = selected;
   const current = rosters.find(value => value.id === selected);
+  useEffect(() => { if (selectedRosterId) setSelected(selectedRosterId); }, [selectedRosterId]);
+  useEffect(() => { if (selected) onClassSelect?.(selected); }, [selected, onClassSelect]);
   useEffect(() => {
     let active = true; setLoading(true); setError('');
     supabase!.from('rosters').select('id,name').eq('teacher_id', teacherId).order('created_at').then(({ data, error }) => {

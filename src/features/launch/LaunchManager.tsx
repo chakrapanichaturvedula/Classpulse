@@ -1,0 +1,49 @@
+import React,{useEffect,useRef,useState} from 'react';
+import {Pressable,StyleSheet,Text,TextInput,View} from 'react-native';
+import {supabase} from '../../lib/supabase';
+type ClassRow={id:string;name:string};type Room={id:string;roster_id:string;room_name:string};type Folder={id:string;name:string;parent_id:string|null};type Quiz={id:string;title:string;folder_id:string|null};type Version={id:string;quiz_id:string;revision:number;version_number:number};type Session={id:string;room_id:string;quiz_id:string;quiz_version_id:string;quiz_title_snapshot:string;class_name_snapshot:string;student_count:number;status:string};
+function Button({title,onPress,disabled=false,selected=false}:{title:string;onPress:()=>void;disabled?:boolean;selected?:boolean}){return <Pressable accessibilityRole="button" accessibilityState={{disabled,selected}} disabled={disabled} onPress={onPress} style={[s.button,selected&&{backgroundColor:'#193C38'},disabled&&{opacity:0.45}]}><Text style={s.buttonText}>{title}</Text></Pressable>;}
+export function LaunchManager({teacherId,active,selectedRosterId,onClassSelect}:{teacherId:string;active:boolean;selectedRosterId:string;onClassSelect:(id:string)=>void}){
+ const [classes,setClasses]=useState<ClassRow[]>([]),[rooms,setRooms]=useState<Room[]>([]),[folders,setFolders]=useState<Folder[]>([]),[quizzes,setQuizzes]=useState<Quiz[]>([]),[versions,setVersions]=useState<Version[]>([]),[sessions,setSessions]=useState<Session[]>([]);
+ const [classId,setClassId]=useState(selectedRosterId),[roomName,setRoomName]=useState(''),[folderId,setFolderId]=useState('all'),[quizId,setQuizId]=useState('');
+ const [busy,setBusy]=useState(false),[ready,setReady]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[confirmEnd,setConfirmEnd]=useState(false);
+ const working=useRef(false),alive=useRef(true),selectedRef=useRef(selectedRosterId); selectedRef.current=selectedRosterId;
+ useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
+ useEffect(()=>{setClassId(selectedRosterId);setConfirmEnd(false);},[selectedRosterId]);
+ async function load(){
+  const result=await Promise.all([
+   supabase!.from('rosters').select('id,name').eq('teacher_id',teacherId).order('created_at'),
+   supabase!.from('rooms').select('id,roster_id,room_name').eq('teacher_id',teacherId),
+   supabase!.from('quiz_folders').select('id,name,parent_id').eq('teacher_id',teacherId).order('name'),
+   supabase!.from('quizzes').select('id,title,folder_id').eq('teacher_id',teacherId).order('created_at',{ascending:false}),
+   supabase!.from('quiz_versions').select('id,quiz_id,revision,version_number').eq('teacher_id',teacherId).order('version_number',{ascending:false}),
+   supabase!.from('quiz_sessions').select('id,room_id,quiz_id,quiz_version_id,quiz_title_snapshot,class_name_snapshot,student_count,status').eq('teacher_id',teacherId).neq('status','ended'),
+  ]);
+  if(!alive.current)return;
+  if(result.some(r=>r.error)){setReady(false);throw new Error('Install the classroom launch setup in Supabase, then refresh this tab.');}
+  const newClasses=result[0].data??[];setClasses(newClasses);setRooms(result[1].data??[]);setFolders(result[2].data??[]);setQuizzes(result[3].data??[]);setVersions(result[4].data??[]);setSessions(result[5].data??[]);setReady(true);
+  if(!newClasses.some(c=>c.id===selectedRef.current)&&newClasses.length){setClassId(newClasses[0].id);onClassSelect(newClasses[0].id);}
+ }
+ async function run(action:()=>Promise<void>){if(working.current)return;working.current=true;setBusy(true);setError('');setNotice('');try{await action();}catch(error){if(alive.current)setError(error instanceof Error?error.message:'Could not complete this action.');}finally{working.current=false;if(alive.current)setBusy(false);}}
+ useEffect(()=>{if(active)void run(load);},[active,teacherId]);
+ const currentClass=classes.find(c=>c.id===classId),room=rooms.find(r=>r.roster_id===classId),session=sessions.find(s=>s.room_id===room?.id),quiz=quizzes.find(q=>q.id===quizId),version=versions.find(v=>v.quiz_id===quizId);
+ function path(id:string){const names:string[]=[],seen=new Set<string>();let item=folders.find(f=>f.id===id);while(item&&!seen.has(item.id)){names.unshift(item.name);seen.add(item.id);item=folders.find(f=>f.id===item!.parent_id);}return names.join(' / ');}
+ function createRoom(){void run(async()=>{const normalized=roomName.trim().toUpperCase();if(!/^[A-Z0-9][A-Z0-9_-]{3,31}$/.test(normalized))throw new Error('Use a room name of 4–32 letters, numbers, hyphens or underscores.');const {error}=await supabase!.from('rooms').insert({teacher_id:teacherId,roster_id:classId,room_name:normalized});if(error)throw new Error(error.code==='23505'?'This room name is already in use, or the class already has a room. Refresh and check.':'Could not create this room.');setRoomName('');await load();setNotice('Room saved for this class.');});}
+ function launch(){void run(async()=>{if(!room||!quiz||!version)throw new Error('Select a class, room and saved quiz.');const {error}=await supabase!.rpc('classpulse_launch_quiz',{target_room:room.id,target_quiz:quiz.id,expected_version:version.id,expected_revision:version.revision});if(error)throw new Error(error.code==='P0001'?error.message:'Could not launch this quiz. Refresh and try again.');await load();setNotice('Session prepared in the selected room. Its quiz and student list are fixed.');});}
+ function end(){void run(async()=>{if(!session)return;const {error}=await supabase!.rpc('classpulse_end_session',{target_session:session.id});if(error)throw new Error('Could not end this session.');setConfirmEnd(false);await load();setNotice('Session ended. You can select another quiz for this room.');});}
+ return <View style={s.section}>
+  <Text accessibilityRole="header" style={s.title}>Launch in your classroom</Text><Text style={s.body}>Select a class and room first, then choose a saved quiz from its folder.</Text>
+  {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}{!!notice&&<Text accessibilityLiveRegion="polite" style={s.body}>{notice}</Text>}
+  <Button title={busy?'Please wait…':'Refresh launch list'} disabled={busy} onPress={()=>void run(load)}/>
+  <View style={s.card}><Text style={s.heading}>1. Select your class</Text><View style={s.row}>{classes.map(c=><Button key={c.id} title={c.name} selected={c.id===classId} disabled={busy} onPress={()=>{setClassId(c.id);onClassSelect(c.id);setConfirmEnd(false);setError('');setNotice('');}}/>)}</View>{ready&&!classes.length&&<Text style={s.body}>Create a class and save its student roster in My classes first.</Text>}</View>
+  {currentClass&&<View style={s.card}><Text style={s.heading}>2. Classroom room</Text>{room?<><Text style={s.room}>{room.room_name}</Text><Text style={s.body}>Assigned to {currentClass.name}.</Text></>:<><Text style={s.body}>Give this class a unique room name. You can reuse it for future sessions.</Text><TextInput accessibilityLabel="Classroom room name" style={s.input} value={roomName} onChangeText={setRoomName} placeholder="e.g. IMT-Y1-A" placeholderTextColor="#61736E" autoCapitalize="characters" autoCorrect={false} maxLength={32} editable={!busy}/><Button title="Create classroom room" disabled={busy||!ready} onPress={createRoom}/></>}</View>}
+  {room&&<View style={s.card}><Text style={s.heading}>3. Choose a quiz from a folder</Text><View style={s.row}><Button title="All quizzes" selected={folderId==='all'} disabled={busy} onPress={()=>{setFolderId('all');setQuizId('');}}/><Button title="Unfiled" selected={folderId==='unfiled'} disabled={busy} onPress={()=>{setFolderId('unfiled');setQuizId('');}}/>{folders.map(f=><Button key={f.id} title={path(f.id)} selected={folderId===f.id} disabled={busy} onPress={()=>{setFolderId(f.id);setQuizId('');}}/>)}</View>
+   {quizzes.filter(q=>folderId==='all'||(folderId==='unfiled'?q.folder_id===null:q.folder_id===folderId)).map(q=><Button key={q.id} title={q.title} selected={q.id===quizId} disabled={busy||!!session} onPress={()=>setQuizId(q.id)}/>)}
+   {!quizzes.some(q=>folderId==='all'||(folderId==='unfiled'?q.folder_id===null:q.folder_id===folderId))&&<Text style={s.body}>No quizzes in this folder. Save one in My quizzes.</Text>}
+   {quiz&&<Text style={s.body}>Launch “{quiz.title}” for {currentClass?.name} in room {room.room_name}.</Text>}
+   <Button title="Launch quiz" disabled={busy||!ready||!quiz||!!session} onPress={launch}/>
+  </View>}
+  {session&&<View style={s.card}><Text style={s.heading}>Room session prepared</Text><Text style={s.body}>{session.quiz_title_snapshot} · {session.class_name_snapshot}{'\n'}{session.student_count} students in the saved session roster.</Text><Text style={s.body}>This stage prepares the room and fixed quiz copy. Real student entry, question delivery and response collection are the next stage.</Text>{confirmEnd?<><Text style={s.body}>End this prepared session and free the room?</Text><View style={s.row}><Button title="Confirm end session" disabled={busy} onPress={end}/><Button title="Cancel" disabled={busy} onPress={()=>setConfirmEnd(false)}/></View></>:<Button title="End session" disabled={busy} onPress={()=>setConfirmEnd(true)}/>}</View>}
+ </View>;
+}
+const s=StyleSheet.create({section:{gap:18},title:{color:'#193C38',fontSize:27,fontWeight:'700'},heading:{color:'#193C38',fontSize:20,fontWeight:'600'},body:{color:'#61736E',fontSize:14,lineHeight:23},error:{color:'#A13624',lineHeight:23},row:{flexDirection:'row',flexWrap:'wrap',gap:10},card:{backgroundColor:'white',borderWidth:1,borderColor:'#DFE6DD',borderRadius:20,padding:22,gap:16},button:{backgroundColor:'#256B5B',padding:14,borderRadius:10,alignSelf:'flex-start'},buttonText:{color:'white',fontWeight:'600'},room:{color:'#193C38',fontSize:26,fontWeight:'700',letterSpacing:1},input:{borderWidth:1,borderColor:'#BBCAC0',borderRadius:10,padding:14,fontSize:16,color:'#193C38',minHeight:48}});

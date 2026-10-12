@@ -59,10 +59,9 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
   if(error)throw new Error(error.code==='P0001'?error.message:'Could not save the draft. Please retry.');
   const saved=data as QuizDocument;if(alive.current)restore(saved);return saved;
  }
- function save(publish:boolean){void run(async()=>{
-  const saved=dirty||!document?await saveDraft():document;
-  if(publish){const {data,error}=await supabase!.rpc('classpulse_publish_quiz',{target_version:saved.version_id,expected_revision:saved.revision});if(error)throw new Error(error.code==='P0001'?error.message:'Could not publish the quiz.');if(alive.current)restore(data as QuizDocument);}
-  await loadLibrary();setNotice(publish?'Quiz published. Its questions and answers are now fixed.':'Draft saved. You can reopen it later.');
+ function save(){void run(async()=>{
+  if(dirty||!document)await saveDraft();
+  await loadLibrary();setNotice('Quiz saved. Choose a class and room in the Launch tab when you want to use it.');
  });}
  function createFolder(){void run(async()=>{
   if(!folderName.trim())throw new Error('Enter a folder name.');
@@ -79,7 +78,7 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
  function discard(){void run(async()=>{if(document)await readQuiz(document.quiz_id);else{setEditorOpen(false);setQuestions([]);setDirty(false);}setNotice('Unsaved edits discarded.');});}
  const orderedFolders=[...folders].sort((a,b)=>path(a.id).localeCompare(path(b.id)));
  return <View style={s.section}>
-  <Text accessibilityRole="header" style={s.title}>Your quiz library</Text><Text style={s.body}>Organize by year, subject, or section. A published quiz can later be used with any of your classes.</Text>
+  <Text accessibilityRole="header" style={s.title}>Your quiz library</Text><Text style={s.body}>Organize by year, subject, or section. Save quizzes here; choose a class and room in the Launch tab to use one.</Text>
   {!!error&&<Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>{error}</Text>}{!!notice&&<Text accessibilityLiveRegion="polite" style={s.body}>{notice}</Text>}
   <View style={s.row}><Action title={busy?'Please wait…':'Refresh library'} disabled={busy} secondary onPress={()=>void run(loadLibrary)}/><Action title="New quiz" disabled={busy||!ready} onPress={newQuiz}/></View>
   <View style={s.card}><Text style={s.subtitle}>Folders and subfolders</Text><TextInput accessibilityLabel="New quiz folder name" style={s.input} value={folderName} onChangeText={setFolderName} placeholder="e.g. First Year or Finance" placeholderTextColor="#61736E" editable={!busy&&ready} maxLength={120}/><Text style={s.label}>Create inside</Text><View style={s.row}><Choice title="Top level" selected={parent===null} disabled={busy} onPress={()=>setParent(null)}/>{orderedFolders.map(f=><Choice key={f.id} title={path(f.id)} selected={parent===f.id} disabled={busy} onPress={()=>setParent(f.id)}/>)}</View><Action title="Create folder" disabled={busy||!ready} onPress={createFolder}/>
@@ -87,11 +86,11 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
    {folderToRename&&<View style={{gap:12}}><TextInput accessibilityLabel="Rename quiz folder" style={s.input} value={renameText} onChangeText={setRenameText} maxLength={120} editable={!busy}/><View style={s.row}><Action title="Save folder name" disabled={busy} onPress={renameFolder}/><Action title="Cancel folder rename" disabled={busy} secondary onPress={()=>setFolderToRename(null)}/></View></View>}
   </View>
   <Text style={s.label}>Browse a folder</Text><View style={s.row}><Choice title="All quizzes" selected={filter==='all'} onPress={()=>setFilter('all')}/><Choice title="Unfiled" selected={filter==='unfiled'} onPress={()=>setFilter('unfiled')}/>{orderedFolders.map(f=><Choice key={f.id} title={path(f.id)} selected={filter===f.id} onPress={()=>setFilter(f.id)}/>)}</View>
-  {ready&&quizzes.filter(q=>filter==='all'||(filter==='unfiled'?q.folder_id===null:q.folder_id===filter)).map(q=>{const v=versions.find(v=>v.quiz_id===q.id);return <View key={q.id} style={s.card}><Text style={s.subtitle}>{q.title}</Text><Text style={s.body}>{q.folder_id?path(q.folder_id):'Unfiled'} · Version {v?.version_number} · {v?.status}</Text><Action title={`Open quiz: ${q.title}`} disabled={busy} secondary onPress={()=>openQuiz(q.id)}/></View>;})}
+  {ready&&quizzes.filter(q=>filter==='all'||(filter==='unfiled'?q.folder_id===null:q.folder_id===filter)).map(q=>{const v=versions.find(v=>v.quiz_id===q.id);return <View key={q.id} style={s.card}><Text style={s.subtitle}>{q.title}</Text><Text style={s.body}>{q.folder_id?path(q.folder_id):'Unfiled'} · Version {v?.version_number} · Saved</Text><Action title={`Open quiz: ${q.title}`} disabled={busy} secondary onPress={()=>openQuiz(q.id)}/></View>;})}
   {ready&&!quizzes.some(q=>filter==='all'||(filter==='unfiled'?q.folder_id===null:q.folder_id===filter))&&<Text style={s.body}>No quizzes in this view yet.</Text>}
   {editorOpen&&<View style={s.card}>
-   <Text accessibilityRole="header" style={s.subtitle}>{document?`Version ${document.version_number} · ${document.status}`:'New quiz draft'}{dirty?' · Unsaved changes':''}</Text>
-   {document?.status==='published'&&<Text style={s.body}>This version is published. Saving edits creates a new draft version; the published content stays fixed.</Text>}
+   <Text accessibilityRole="header" style={s.subtitle}>{document?'Saved quiz':'New quiz'}{dirty?' · Unsaved changes':''}</Text>
+   {document?.status==='published'&&<Text style={s.body}>This version is fixed for classroom use. Save your edits to prepare a new version without changing existing sessions.</Text>}
    <Text style={s.label}>Quiz title</Text><TextInput accessibilityLabel="Quiz title" style={s.input} value={title} onChangeText={value=>{setTitle(value);setDirty(true);}} maxLength={200} editable={!busy}/>
    <Text style={s.label}>Quiz folder</Text><View style={s.row}><Choice title="Unfiled" selected={folder===null} disabled={busy} onPress={()=>{setFolder(null);setDirty(true);}}/>{orderedFolders.map(f=><Choice key={f.id} title={path(f.id)} selected={folder===f.id} disabled={busy} onPress={()=>{setFolder(f.id);setDirty(true);}}/>)}</View>
    {questions.map((q,index)=><View key={q.key} style={s.question}>
@@ -103,8 +102,8 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
     <View style={s.row}><Action title="Move up" disabled={busy||index===0} secondary onPress={()=>move(index,-1)}/><Action title="Move down" disabled={busy||index===questions.length-1} secondary onPress={()=>move(index,1)}/><Action title={`Remove question ${index+1}`} disabled={busy} secondary onPress={()=>{setQuestions(value=>value.filter((_,i)=>i!==index));setDirty(true);}}/></View>
    </View>)}
    <View style={s.row}>{(['multiple_choice','true_false','short_answer'] as QuestionKind[]).map(kind=><Action key={kind} title={`Add ${kind==='multiple_choice'?'multiple choice':kind==='true_false'?'true/false':'short answer'}`} secondary disabled={busy||questions.length>=100} onPress={()=>{setQuestions(value=>[...value,newQuestion(kind)]);setDirty(true);}}/>)}</View>
-   <Text style={s.body}>Drafts can have incomplete questions. Publishing checks prompts, options, and answer keys. Save before leaving this editor.</Text>
-   <View style={s.row}><Action title={document?.status==='published'?'Save as new draft':'Save draft'} disabled={busy||(!dirty&&!!document)} onPress={()=>save(false)}/><Action title="Publish quiz" disabled={busy||(document?.status==='published'&&!dirty)} onPress={()=>save(true)}/><Action title="Discard unsaved edits" disabled={busy||!dirty} secondary onPress={discard}/></View>
+   <Text style={s.body}>You can save incomplete quizzes. Launch checks prompts and correct answers before preparing the classroom session. Save before leaving this editor.</Text>
+   <View style={s.row}><Action title="Save quiz" disabled={busy||(!dirty&&!!document)} onPress={save}/><Action title="Discard unsaved edits" disabled={busy||!dirty} secondary onPress={discard}/></View>
   </View>}
  </View>;
 }
