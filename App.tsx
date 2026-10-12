@@ -67,7 +67,7 @@ export default function App() {
           </Pressable>
           {page !== 'home' ? <Button title="Home" secondary onPress={() => navigate('home')} /> : <Tag>Made for your classroom</Tag>}
         </View>
-        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 5 · Students can join a prepared classroom room. Questions and live answers arrive next.' : 'STEP 5 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
+        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 6 · Start a prepared quiz. Students can answer questions; the live results screen comes next.' : 'STEP 5 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
 
         {!!pendingExit && <Card style={{ gap: 14 }}><Text style={s.cardTitle}>You have unsaved quiz changes.</Text><Text style={s.body}>Cancel to return to the editor and save your draft, or discard those edits to continue.</Text><Button title="Cancel — keep editing" secondary onPress={() => setPendingExit(null)} /><Button title="Discard changes and continue" onPress={discardAndContinue} /></Card>}
         {page === 'account' && (auth.loading ? <Card><Text style={s.body}>Opening your workspace…</Text></Card> : auth.profile && auth.session && auth.profile.id === auth.session.user.id ? <>
@@ -126,7 +126,7 @@ export default function App() {
 
         {page === 'student' && <StudentEntry />}
         <View style={s.footer}>
-          <View style={{ gap: 5 }}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 5 of 10</Text></View>
+          <View style={{ gap: 5 }}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 6 of 10</Text></View>
           <Pressable accessibilityRole="link" accessibilityLabel="Powered by IMT Hyderabad. Open the institute website." onPress={() => { void Linking.openURL('https://www.imthyderabad.edu.in/'); }} style={s.instituteBrand}>
             <Text style={s.instituteCaption}>Powered by</Text>
             <Image source={require('./assets/imt-hyderabad-logo.png')} resizeMode="contain" style={s.instituteLogo} accessibilityLabel="Institute of Management Technology Hyderabad logo" />
