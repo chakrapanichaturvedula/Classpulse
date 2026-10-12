@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 
 export function TeacherAuthScreen({ onPreview }: { onPreview: () => void }) {
@@ -32,7 +32,7 @@ export function TeacherAuthScreen({ onPreview }: { onPreview: () => void }) {
       } else {
         const { error: authError } = await supabase.auth.signUp({
           email: normalizedEmail, password,
-          options: { data: { full_name: name.trim() }, emailRedirectTo: 'http://localhost:8081' },
+          options: { data: { full_name: name.trim() }, emailRedirectTo: Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : undefined },
         });
         if (authError) {
           setError(authError.status === 429 ? 'Too many attempts. Please wait before trying again.' : 'Could not create the account. Check your details, connection, and email service setup.');
