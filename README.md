@@ -2,8 +2,8 @@
 
 A classroom assessment app for a small group of college teachers. Maximum planned class size: 150 students.
 
-## Step 7: Live Results is ready for database installation
-Teacher login, named class rosters, CSV imports, quiz authoring, rooms, student entry, ordered questions and saved answers have been reviewed on the connected project, including the answer privacy check. The next migration adds teacher Live Results with a student/question grid, scores, completion and projection controls. Live changes have a periodic refresh backup. Deployed realtime verification, manual grading controls, other launch modes and reports are subsequent steps.
+## Working classroom flow with a minimal teacher interface
+Teacher login, named class rosters, CSV imports, quiz authoring, rooms, student entry, ordered questions, saved answers and Live Results have passed teacher review on the connected project, including the live-results privacy test. The interface now uses familiar Launch / Library / Rooms / Live Results navigation, compact lists, dialogs and a white/blue palette. See docs/ui-review.md for the UI review; no new database setup is needed for it. Manual grading controls, additional launch modes, exports and emails remain forthcoming.
 
 ### Try it on Windows
 Double-click Start-Classpulse.cmd in this folder. Keep its window open, then open http://localhost:8081 in your browser. Close the window when you are finished.
@@ -33,4 +33,4 @@ React Native, Expo and TypeScript. Supabase authentication and PostgreSQL are co
 Never commit real rosters, credentials, database exports or private student reports. The GitHub repository is currently public. .env.example contains documentation only.
 
 ## Next stage
-Install and test Live Results and its privacy check. Manual grading, report exports and additional launch settings follow later.
+Review the minimal interface with faculty. Manual grading, report exports and additional launch settings follow later.

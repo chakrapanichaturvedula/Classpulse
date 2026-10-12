@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { editQuestions, newQuestion, serializeQuestions, type EditorQuestion, type QuestionKind, type QuizDocument } from './model';
 
@@ -7,13 +7,14 @@ type Folder={id:string;name:string;parent_id:string|null};
 type LibraryQuiz={id:string;title:string;folder_id:string|null};
 type Version={quiz_id:string;version_number:number;status:string};
 function Action({title,onPress,disabled=false,secondary=false}:{title:string;onPress:()=>void;disabled?:boolean;secondary?:boolean}) {
- return <Pressable accessibilityRole="button" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={[s.button,secondary&&s.secondary,disabled&&{opacity:0.45}]}><Text style={[s.buttonText,secondary&&{color:'#193C38'}]}>{title}</Text></Pressable>;
+ return <Pressable accessibilityRole="button" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={[s.button,secondary&&s.secondary,disabled&&{opacity:0.45}]}><Text style={[s.buttonText,secondary&&{color:'#263B4B'}]}>{title}</Text></Pressable>;
 }
 function Choice({title,selected,onPress,disabled=false}:{title:string;selected:boolean;onPress:()=>void;disabled?:boolean}) {
- return <Pressable accessibilityRole="button" accessibilityState={{selected,disabled}} disabled={disabled} onPress={onPress} style={[s.choice,selected&&{backgroundColor:'#193C38'},disabled&&{opacity:0.5}]}><Text style={{color:selected?'white':'#193C38',fontWeight:'600'}}>{title}</Text></Pressable>;
+ return <Pressable accessibilityRole="button" accessibilityState={{selected,disabled}} disabled={disabled} onPress={onPress} style={[s.choice,selected&&{backgroundColor:'#263B4B'},disabled&&{opacity:0.5}]}><Text style={{color:selected?'white':'#263B4B',fontWeight:'600'}}>{title}</Text></Pressable>;
 }
 export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyChange:(dirty:boolean)=>void}) {
  const [folders,setFolders]=useState<Folder[]>([]),[quizzes,setQuizzes]=useState<LibraryQuiz[]>([]),[versions,setVersions]=useState<Version[]>([]);
+ const [search,setSearch]=useState(''),[folderForm,setFolderForm]=useState(false);
  const [filter,setFilter]=useState<string>('all'),[folderName,setFolderName]=useState(''),[parent,setParent]=useState<string|null>(null);
  const [folderToRename,setFolderToRename]=useState<string|null>(null),[renameText,setRenameText]=useState('');
  const [ready,setReady]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
@@ -48,7 +49,7 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
  useEffect(()=>{alive.current=true;void run(loadLibrary);return()=>{alive.current=false;};},[teacherId]);
  function restore(doc:QuizDocument) {setDocument(doc);setTitle(doc.title);setFolder(doc.folder_id);setQuestions(editQuestions(doc.questions));setEditorOpen(true);setDirty(false);}
  async function readQuiz(id:string){const {data,error}=await supabase!.rpc('classpulse_get_quiz',{target_quiz:id});if(error)throw new Error('Could not open this quiz. Please retry.');if(alive.current)restore(data as QuizDocument);}
- function newQuiz(){if(dirty){setError('Save your draft or discard edits before opening another quiz.');return;}setDocument(null);setTitle('');setFolder(filter==='all'||filter==='unfiled'?null:filter);setQuestions([]);setEditorOpen(true);setDirty(false);setError('');setNotice('');}
+ function newQuiz(){if(dirty){setError('Save your draft or discard edits before opening another quiz.');return;}setDocument(null);setTitle('');setFolder(filter==='all'||filter==='all-quizzes'||filter==='unfiled'?null:filter);setQuestions([]);setEditorOpen(true);setDirty(false);setError('');setNotice('');}
  function openQuiz(id:string){if(dirty){setError('Save your draft or discard edits before opening another quiz.');return;}void run(()=>readQuiz(id));}
  function updateQuestion(index:number,patch:Partial<EditorQuestion>){setQuestions(value=>value.map((q,i)=>i===index?{...q,...patch}:q));setDirty(true);}
  function move(index:number,offset:number){setQuestions(value=>{const next=[...value];[next[index],next[index+offset]]=[next[index+offset],next[index]];return next;});setDirty(true);}
@@ -63,11 +64,13 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
   if(dirty||!document)await saveDraft();
   await loadLibrary();setNotice('Quiz saved. Choose a class and room in the Launch tab when you want to use it.');
  });}
+ function saveAndExit(){void run(async()=>{if(dirty||!document)await saveDraft();await loadLibrary();setEditorOpen(false);setNotice('Quiz saved.');});}
+ function backToLibrary(){if(dirty){setError('Save your quiz or discard edits before returning to the library.');return;}setEditorOpen(false);setError('');setNotice('');}
  function createFolder(){void run(async()=>{
   if(!folderName.trim())throw new Error('Enter a folder name.');
   const {error}=await supabase!.from('quiz_folders').insert({teacher_id:teacherId,name:folderName.trim(),parent_id:parent});
   if(error)throw new Error(error.code==='23505'?'A folder with that name already exists here.':'Could not create the folder.');
-  setFolderName('');await loadLibrary();setNotice('Folder created.');
+  setFolderName('');await loadLibrary();setFolderForm(false);setNotice('Folder created.');
  });}
  function renameFolder(){void run(async()=>{
   if(!renameText.trim())throw new Error('Enter a folder name.');
@@ -77,19 +80,33 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
  });}
  function discard(){void run(async()=>{if(document)await readQuiz(document.quiz_id);else{setEditorOpen(false);setQuestions([]);setDirty(false);}setNotice('Unsaved edits discarded.');});}
  const orderedFolders=[...folders].sort((a,b)=>path(a.id).localeCompare(path(b.id)));
+ const needle=search.trim().toLowerCase();
+ const here=filter==='all'||filter==='all-quizzes'||filter==='unfiled'?null:filter;
+ const visibleFolders=orderedFolders.filter(f=>needle?path(f.id).toLowerCase().includes(needle):filter!=='all-quizzes'&&filter!=='unfiled'&&f.parent_id===here);
+ const visibleQuizzes=quizzes.filter(q=>needle?`${q.title} ${q.folder_id?path(q.folder_id):''}`.toLowerCase().includes(needle):filter==='all-quizzes'||q.folder_id===here);
  return <View style={s.section}>
-  <Text accessibilityRole="header" style={s.title}>Your quiz library</Text><Text style={s.body}>Organize by year, subject, or section. Save quizzes here; choose a class and room in the Launch tab to use one.</Text>
   {!!error&&<Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>{error}</Text>}{!!notice&&<Text accessibilityLiveRegion="polite" style={s.body}>{notice}</Text>}
-  <View style={s.row}><Action title={busy?'Please wait…':'Refresh library'} disabled={busy} secondary onPress={()=>void run(loadLibrary)}/><Action title="New quiz" disabled={busy||!ready} onPress={newQuiz}/></View>
-  <View style={s.card}><Text style={s.subtitle}>Folders and subfolders</Text><TextInput accessibilityLabel="New quiz folder name" style={s.input} value={folderName} onChangeText={setFolderName} placeholder="e.g. First Year or Finance" placeholderTextColor="#61736E" editable={!busy&&ready} maxLength={120}/><Text style={s.label}>Create inside</Text><View style={s.row}><Choice title="Top level" selected={parent===null} disabled={busy} onPress={()=>setParent(null)}/>{orderedFolders.map(f=><Choice key={f.id} title={path(f.id)} selected={parent===f.id} disabled={busy} onPress={()=>setParent(f.id)}/>)}</View><Action title="Create folder" disabled={busy||!ready} onPress={createFolder}/>
-   {filter!=='all'&&filter!=='unfiled'&&<Action title="Rename selected folder" disabled={busy} secondary onPress={()=>{setFolderToRename(filter);setRenameText(folders.find(f=>f.id===filter)?.name??'');}}/>}
-   {folderToRename&&<View style={{gap:12}}><TextInput accessibilityLabel="Rename quiz folder" style={s.input} value={renameText} onChangeText={setRenameText} maxLength={120} editable={!busy}/><View style={s.row}><Action title="Save folder name" disabled={busy} onPress={renameFolder}/><Action title="Cancel folder rename" disabled={busy} secondary onPress={()=>setFolderToRename(null)}/></View></View>}
-  </View>
-  <Text style={s.label}>Browse a folder</Text><View style={s.row}><Choice title="All quizzes" selected={filter==='all'} onPress={()=>setFilter('all')}/><Choice title="Unfiled" selected={filter==='unfiled'} onPress={()=>setFilter('unfiled')}/>{orderedFolders.map(f=><Choice key={f.id} title={path(f.id)} selected={filter===f.id} onPress={()=>setFilter(f.id)}/>)}</View>
-  {ready&&quizzes.filter(q=>filter==='all'||(filter==='unfiled'?q.folder_id===null:q.folder_id===filter)).map(q=>{const v=versions.find(v=>v.quiz_id===q.id);return <View key={q.id} style={s.card}><Text style={s.subtitle}>{q.title}</Text><Text style={s.body}>{q.folder_id?path(q.folder_id):'Unfiled'} · Version {v?.version_number} · Saved</Text><Action title={`Open quiz: ${q.title}`} disabled={busy} secondary onPress={()=>openQuiz(q.id)}/></View>;})}
-  {ready&&!quizzes.some(q=>filter==='all'||(filter==='unfiled'?q.folder_id===null:q.folder_id===filter))&&<Text style={s.body}>No quizzes in this view yet.</Text>}
+  {!editorOpen&&<>
+   <View style={s.toolbar}><Text accessibilityRole="header" style={s.title}>Library</Text><View style={s.row}><Action title="Refresh" disabled={busy} secondary onPress={()=>void run(loadLibrary)}/><Action title="New Folder" disabled={busy||!ready} secondary onPress={()=>{setParent(here);setFolderName('');setFolderForm(true);}}/><Action title="Add Quiz" disabled={busy||!ready} onPress={newQuiz}/></View></View>
+   <View style={s.libraryTools}><View style={s.row}><Choice title="Personal" selected={filter==='all'} onPress={()=>{setFilter('all');setSearch('');}}/><Choice title="All quizzes" selected={filter==='all-quizzes'} onPress={()=>{setFilter('all-quizzes');setSearch('');}}/>{here&&<Action title="‹ Back" disabled={busy} secondary onPress={()=>{setFilter(folders.find(f=>f.id===here)?.parent_id??'all');setSearch('');}}/>}</View><TextInput accessibilityLabel="Search quizzes and folders" placeholder="Search quizzes and folders" placeholderTextColor="#667582" value={search} onChangeText={setSearch} style={[s.input,{width:280,maxWidth:'100%'}]}/></View>
+   <View style={s.toolbar}><Text style={s.label}>{needle?'Search results':here?`Personal / ${path(here)}`:filter==='all-quizzes'?'All quizzes':'Personal'}</Text>{here&&<Action title="Rename folder" disabled={busy} secondary onPress={()=>{setFolderToRename(here);setRenameText(folders.find(f=>f.id===here)?.name??'');}}/>}</View>
+   <View style={s.list}>
+    <View style={s.listHeader}><Text style={[s.label,{flex:1}]}>NAME</Text><Text style={s.typeHeader}>TYPE</Text></View>
+    {visibleFolders.map(f=><Pressable key={f.id} accessibilityRole="button" accessibilityLabel={`Open folder: ${path(f.id)}`} disabled={busy} onPress={()=>{setFilter(f.id);setSearch('');}} style={s.listRow}><Text style={s.fileIcon}>▸</Text><View style={{flex:1,gap:4}}><Text style={s.itemName}>{f.name}</Text>{!!needle&&<Text style={s.body}>{path(f.id)}</Text>}</View><Text style={s.typeText}>Folder</Text></Pressable>)}
+    {visibleQuizzes.map(q=><Pressable key={q.id} accessibilityRole="button" accessibilityLabel={`Open quiz: ${q.title}`} disabled={busy} onPress={()=>openQuiz(q.id)} style={s.listRow}><Text style={s.fileIcon}>≡</Text><View style={{flex:1,gap:4}}><Text style={s.itemName}>{q.title}</Text>{(needle||filter==='all-quizzes')&&<Text style={s.body}>{q.folder_id?path(q.folder_id):'Personal'}</Text>}</View><Text style={s.typeText}>Quiz</Text></Pressable>)}
+    {ready&&!visibleFolders.length&&!visibleQuizzes.length&&<Text style={[s.body,{padding:20}]}>{needle?'No matching quizzes or folders.':'This folder is empty. Add a quiz or create a folder.'}</Text>}
+    {!ready&&!error&&<Text style={[s.body,{padding:20}]}>Loading library…</Text>}
+   </View>
+  </>}
+  <Modal visible={folderForm||!!folderToRename} transparent animationType="fade" onRequestClose={()=>{if(!busy){setFolderForm(false);setFolderToRename(null);}}}>
+   <View style={s.overlay}><View accessibilityViewIsModal style={s.dialog}><Text style={s.subtitle}>{folderToRename?'Rename folder':'New Folder'}</Text><Text style={s.body}>{folderToRename?'Choose a folder name.':`Create in ${parent?path(parent):'Personal'}`}</Text>
+    <TextInput accessibilityLabel={folderToRename?'Rename quiz folder':'New quiz folder name'} style={s.input} autoFocus value={folderToRename?renameText:folderName} onChangeText={folderToRename?setRenameText:setFolderName} placeholder="Folder name" maxLength={120} editable={!busy}/>
+    {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
+    <View style={s.row}><Action title="Cancel" disabled={busy} secondary onPress={()=>{setFolderForm(false);setFolderToRename(null);setError('');}}/><Action title={busy?'Saving…':folderToRename?'Save':'Create'} disabled={busy||!ready} onPress={folderToRename?renameFolder:createFolder}/></View>
+   </View></View>
+  </Modal>
   {editorOpen&&<View style={s.card}>
-   <Text accessibilityRole="header" style={s.subtitle}>{document?'Saved quiz':'New quiz'}{dirty?' · Unsaved changes':''}</Text>
+   <View style={s.toolbar}><Action title="‹ Library" secondary disabled={busy} onPress={backToLibrary}/><Text accessibilityRole="header" style={s.subtitle}>{document?'Edit quiz':'New quiz'}{dirty?' · Unsaved changes':''}</Text><Action title="Save and Exit" disabled={busy} onPress={saveAndExit}/></View>
    {document?.status==='published'&&<Text style={s.body}>This version is fixed for classroom use. Save your edits to prepare a new version without changing existing sessions.</Text>}
    <Text style={s.label}>Quiz title</Text><TextInput accessibilityLabel="Quiz title" style={s.input} value={title} onChangeText={value=>{setTitle(value);setDirty(true);}} maxLength={200} editable={!busy}/>
    <Text style={s.label}>Quiz folder</Text><View style={s.row}><Choice title="Unfiled" selected={folder===null} disabled={busy} onPress={()=>{setFolder(null);setDirty(true);}}/>{orderedFolders.map(f=><Choice key={f.id} title={path(f.id)} selected={folder===f.id} disabled={busy} onPress={()=>{setFolder(f.id);setDirty(true);}}/>)}</View>
@@ -107,4 +124,4 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
   </View>}
  </View>;
 }
-const s=StyleSheet.create({section:{gap:18},title:{color:'#193C38',fontSize:27,fontWeight:'700'},subtitle:{color:'#193C38',fontSize:20,fontWeight:'600'},label:{color:'#193C38',fontWeight:'600',fontSize:13},body:{color:'#61736E',fontSize:14,lineHeight:23},error:{color:'#A13624',lineHeight:23},row:{flexDirection:'row',flexWrap:'wrap',gap:10},card:{backgroundColor:'white',borderWidth:1,borderColor:'#DFE6DD',borderRadius:20,padding:22,gap:16},question:{backgroundColor:'#F6F5EF',padding:18,borderRadius:14,gap:14},input:{borderWidth:1,borderColor:'#BBCAC0',borderRadius:10,padding:14,fontSize:16,color:'#193C38',minHeight:48},button:{backgroundColor:'#256B5B',padding:14,borderRadius:10,alignSelf:'flex-start'},secondary:{backgroundColor:'#EAF1E8'},buttonText:{color:'white',fontWeight:'600'},choice:{backgroundColor:'#EAF1E8',padding:12,borderRadius:10}});
+const s=StyleSheet.create({toolbar:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:16,flexWrap:'wrap'},libraryTools:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:16,flexWrap:'wrap'},list:{borderTopWidth:1,borderTopColor:'#E4E9EE'},listHeader:{flexDirection:'row',alignItems:'center',paddingHorizontal:16,paddingVertical:14,borderBottomWidth:1,borderBottomColor:'#E4E9EE'},listRow:{flexDirection:'row',alignItems:'center',gap:16,minHeight:56,paddingHorizontal:16,paddingVertical:14,borderBottomWidth:1,borderBottomColor:'#E4E9EE'},fileIcon:{fontSize:20,color:'#263B4B',width:20},itemName:{fontSize:15,color:'#263B4B'},typeHeader:{width:65,color:'#667582',fontSize:12},typeText:{width:65,color:'#667582',fontSize:13},overlay:{flex:1,backgroundColor:'rgba(38,59,75,0.25)',alignItems:'center',justifyContent:'center',padding:20},dialog:{width:'100%',maxWidth:440,backgroundColor:'white',padding:24,borderRadius:8,gap:16},section:{gap:18},title:{color:'#263B4B',fontSize:28,fontWeight:'700'},subtitle:{color:'#263B4B',fontSize:18,fontWeight:'600'},label:{color:'#263B4B',fontWeight:'600',fontSize:13},body:{color:'#667582',fontSize:14,lineHeight:23},error:{color:'#A13624',lineHeight:23},row:{flexDirection:'row',flexWrap:'wrap',gap:10},card:{backgroundColor:'white',borderWidth:1,borderColor:'#E4E9EE',borderRadius:4,padding:20,gap:16},question:{backgroundColor:'#FFFFFF',padding:18,borderRadius:4,gap:14},input:{borderWidth:1,borderColor:'#CDD6DE',borderRadius:4,padding:11,fontSize:16,color:'#263B4B',minHeight:40},button:{backgroundColor:'#0088B0',paddingVertical:10,paddingHorizontal:14,borderRadius:4,alignSelf:'flex-start'},secondary:{backgroundColor:'#F0F7FA'},buttonText:{color:'white',fontWeight:'600'},choice:{backgroundColor:'#F0F7FA',paddingVertical:9,paddingHorizontal:12,borderRadius:4}});

@@ -17,8 +17,8 @@ export function CsvFiles({ disabled, onRead, onError }: { disabled: boolean; onR
     try { onRead(await file.text()); } catch { onError('Could not read that file. Please select it again.'); }
   }
   return <View style={{ gap: 15 }}>
-    <Pressable accessibilityRole="button" disabled={disabled} onPress={download} style={{ backgroundColor: '#EAF1E8', padding: 14, borderRadius: 10, alignSelf: 'flex-start', opacity: disabled ? 0.5 : 1 }}><Text style={{ color: '#193C38', fontWeight: '600' }}>Download roster template ↓</Text></Pressable>
-    <Text style={{ color: '#61736E', lineHeight: 23 }}>Columns: id,name,emailid. ID and name are required; emailid can be blank. Set the ID column to Text in Excel, then save as CSV UTF-8.</Text>
-    {React.createElement('input', { type: 'file', accept: '.csv,text/csv', 'aria-label': 'Upload filled roster CSV', disabled, onChange: upload, style: { maxWidth: '100%', color: '#193C38', fontSize: 14 } })}
+    <Pressable accessibilityRole="button" disabled={disabled} onPress={download} style={{ backgroundColor: '#F0F7FA', padding: 10, borderRadius: 4, alignSelf: 'flex-start', opacity: disabled ? 0.5 : 1 }}><Text style={{ color: '#263B4B', fontWeight: '600' }}>Download roster template ↓</Text></Pressable>
+    <Text style={{ color: '#667582', lineHeight: 23 }}>Columns: id,name,emailid. ID and name are required; emailid can be blank. Set the ID column to Text in Excel, then save as CSV UTF-8.</Text>
+    {React.createElement('input', { type: 'file', accept: '.csv,text/csv', 'aria-label': 'Upload filled roster CSV', disabled, onChange: upload, style: { maxWidth: '100%', color: '#263B4B', fontSize: 14 } })}
   </View>;
 }

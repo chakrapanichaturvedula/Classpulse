@@ -10,6 +10,7 @@ function Action({ title, disabled, onPress }: { title: string; disabled?: boolea
 }
 export function RosterManager({ teacherId, selectedRosterId, onClassSelect }: { teacherId: string; selectedRosterId?: string; onClassSelect?: (id: string) => void }) {
   const [rosters, setRosters] = useState<Roster[]>([]), [selected, setSelected] = useState('');
+  const [createOpen,setCreateOpen]=useState(false),[renameOpen,setRenameOpen]=useState(false);
   const [name, setName] = useState(''), [rename, setRename] = useState('');
   const [students, setStudents] = useState<RosterRow[]>([]), [preview, setPreview] = useState<CsvPreview | null>(null);
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [classLoading, setClassLoading] = useState(false);
@@ -52,13 +53,13 @@ export function RosterManager({ teacherId, selectedRosterId, onClassSelect }: { 
     if (!name.trim()) throw new Error('Enter a class name.');
     const { data, error } = await supabase!.from('rosters').insert({ name: name.trim(), teacher_id: teacherId }).select('id,name').single();
     if (error) throw new Error(error.code === '23505' ? 'You already have a class with this name.' : 'Could not create the class. Check the Step 3 database setup.');
-    setName(''); setRosters(value => [...value, data]); setSelected(data.id); setNotice('Class created. Download the template to add students.');
+    setName(''); setCreateOpen(false); setRosters(value => [...value, data]); setSelected(data.id); setNotice('Class created. Download the template to add students.');
   }); }
   function renameClass() { void mutate(async () => {
     if (!rename.trim()) throw new Error('Enter a class name.');
     const { data, error } = await supabase!.from('rosters').update({ name: rename.trim() }).eq('id', selected).eq('teacher_id', teacherId).select('id,name').single();
     if (error) throw new Error(error.code === '23505' ? 'Another class already uses this name.' : 'Could not rename the class. Please retry.');
-    setRosters(value => value.map(row => row.id === selected ? data : row)); setNotice('Class name saved.');
+    setRosters(value => value.map(row => row.id === selected ? data : row)); setRenameOpen(false); setNotice('Class name saved.');
   }); }
   function saveRoster() { void mutate(async () => {
     if (!preview || preview.errors.length || !selected) throw new Error('Fix the preview errors before saving.');
@@ -68,18 +69,17 @@ export function RosterManager({ teacherId, selectedRosterId, onClassSelect }: { 
   }); }
   const disabled = busy || loading || classLoading;
   return <View style={s.section}>
-    <Text accessibilityRole="header" style={s.title}>Your classes</Text>
-    <Text style={s.body}>Create a named class, then fill and upload its roster template.</Text>
+    <View style={s.toolbar}><Text accessibilityRole="header" style={s.title}>Rooms</Text><View style={s.row}><Action title="Refresh" disabled={disabled} onPress={()=>setRefresh(value=>value+1)}/><Action title="Add class" disabled={disabled} onPress={()=>setCreateOpen(value=>!value)}/></View></View>
+    <Text style={s.body}>Manage the class rosters used in your rooms.</Text>
     {!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}
     {!!notice && <Text accessibilityLiveRegion="polite" style={s.body}>{notice}</Text>}
-    <View style={s.card}><Text style={s.subtitle}>Create a class</Text><TextInput accessibilityLabel="New class name" style={s.input} value={name} onChangeText={setName} placeholder="e.g. First Year — Section A" placeholderTextColor="#61736E" maxLength={120} editable={!disabled} /><Action title={busy ? 'Saving…' : 'Create class'} disabled={disabled} onPress={createClass} /></View>
-    <Action title={loading ? 'Loading classes…' : 'Retry / refresh classes'} disabled={disabled} onPress={() => setRefresh(value => value + 1)} />
-    <View style={s.row}>{rosters.map(roster => <Pressable key={roster.id} accessibilityRole="button" accessibilityState={{ selected: selected === roster.id, disabled: busy }} disabled={busy} style={[s.choice, selected === roster.id && { backgroundColor: '#193C38' }]} onPress={() => { setSelected(roster.id); setError(''); setNotice(''); }}><Text style={{ color: selected === roster.id ? 'white' : '#193C38', fontWeight: '600' }}>{roster.name}</Text></Pressable>)}</View>
+    {createOpen&&<View style={s.card}><Text style={s.subtitle}>Add class</Text><TextInput accessibilityLabel="New class name" style={s.input} value={name} onChangeText={setName} placeholder="e.g. First Year — Section A" placeholderTextColor="#667582" maxLength={120} editable={!disabled} /><Action title={busy ? 'Saving…' : 'Create class'} disabled={disabled} onPress={createClass} /><Action title="Cancel" onPress={()=>setCreateOpen(false)}/></View>}
+    <View style={s.classList}>{rosters.map(roster=><Pressable key={roster.id} accessibilityRole="button" accessibilityState={{selected:selected===roster.id,disabled:busy}} disabled={busy} onPress={()=>{setSelected(roster.id);setRenameOpen(false);setError('');setNotice('');}} style={[s.classRow,selected===roster.id&&{backgroundColor:'#F0F7FA'}]}><Text style={s.itemName}>{roster.name}</Text><Text style={s.link}>View roster ›</Text></Pressable>)}</View>
     {!loading && !error && !rosters.length && <Text style={s.body}>No classes yet. Create your first class above.</Text>}
     {!!current && <View style={s.card}>
-      <Text accessibilityRole="header" style={s.subtitle}>{current.name}</Text>
-      <TextInput accessibilityLabel="Rename selected class" style={s.input} value={rename} onChangeText={setRename} maxLength={120} editable={!disabled} /><Action title="Save class name" disabled={disabled || rename.trim() === current.name} onPress={renameClass} />
-      <Text style={s.body}>{classLoading ? 'Loading students…' : `${students.length} students saved · Maximum 150`}</Text>
+      <View style={s.toolbar}><Text accessibilityRole="header" style={s.subtitle}>{current.name}</Text><Action title="Rename class" disabled={disabled} onPress={()=>setRenameOpen(value=>!value)}/></View>
+      {renameOpen&&<View style={s.row}><TextInput accessibilityLabel="Rename selected class" style={s.input} value={rename} onChangeText={setRename} maxLength={120} editable={!disabled} /><Action title="Save class name" disabled={disabled || rename.trim() === current.name} onPress={renameClass} /><Action title="Cancel" onPress={()=>setRenameOpen(false)}/></View>}
+      <Text style={s.body}>{classLoading ? 'Loading students…' : `${students.length} students · Maximum 150`}</Text>
       <CsvFiles disabled={disabled} onRead={text => { if (selectedRef.current !== selected) return; setPreview(parseRosterCsv(text)); setError(''); setNotice(''); }} onError={message => { if (selectedRef.current !== selected) return; setPreview(null); setError(message); }} />
       {preview && <View style={s.preview}>
         <Text style={s.subtitle}>Upload preview · {preview.rows.length} students</Text>
@@ -88,12 +88,13 @@ export function RosterManager({ teacherId, selectedRosterId, onClassSelect }: { 
         {preview.rows.map((student,index) => <StudentLine key={index} student={student} />)}
         <View style={s.row}><Action title={busy ? 'Saving…' : 'Save roster'} disabled={disabled || preview.errors.length > 0} onPress={saveRoster} /><Action title="Cancel upload" disabled={busy} onPress={() => setPreview(null)} /></View>
       </View>}
+      {!preview&&!classLoading&&students.length>0&&<View style={s.student}><Text style={[s.columnId,s.tableLabel]}>STUDENT ID</Text><Text style={[s.columnName,s.tableLabel]}>NAME</Text><Text style={[s.columnEmail,s.tableLabel]}>EMAIL</Text></View>}
       {!preview && !classLoading && students.map(student => <StudentLine key={student.id} student={student} />)}
       {!preview && !classLoading && !students.length && <Text style={s.body}>No students saved in this class yet.</Text>}
     </View>}
   </View>;
 }
-function StudentLine({ student }: { student: RosterRow }) { return <View style={s.student}><Text style={{color:'#193C38',fontWeight:'600'}}>{student.id} · {student.name}</Text><Text style={s.body}>{student.emailid || 'No email provided'}</Text></View>; }
-const s = StyleSheet.create({
-  section:{gap:18}, title:{color:'#193C38',fontSize:27,fontWeight:'700'},subtitle:{color:'#193C38',fontSize:20,fontWeight:'600'}, body:{color:'#61736E',fontSize:14,lineHeight:23},error:{color:'#A13624',lineHeight:23},card:{backgroundColor:'white',borderWidth:1,borderColor:'#DFE6DD',borderRadius:20,padding:22,gap:16},row:{flexDirection:'row',flexWrap:'wrap',gap:10},input:{borderWidth:1,borderColor:'#BBCAC0',borderRadius:10,padding:14,fontSize:16,color:'#193C38',minHeight:48},button:{backgroundColor:'#256B5B',padding:14,borderRadius:10,alignSelf:'flex-start'},buttonText:{color:'white',fontWeight:'600'},choice:{backgroundColor:'#EAF1E8',padding:14,borderRadius:10},preview:{backgroundColor:'#F6F5EF',padding:16,borderRadius:12,gap:14},student:{borderTopWidth:1,borderTopColor:'#DFE6DD',paddingTop:12,gap:5},
+function StudentLine({student}:{student:RosterRow}){return <View style={s.student}><Text style={[s.columnId,s.itemName]}>{student.id}</Text><Text style={[s.columnName,s.body]}>{student.name}</Text><Text style={[s.columnEmail,s.body]}>{student.emailid||'—'}</Text></View>;}
+const s = StyleSheet.create({toolbar:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',alignItems:'center',gap:16},classList:{borderTopWidth:1,borderTopColor:'#E4E9EE'},classRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:16,padding:14,borderBottomWidth:1,borderBottomColor:'#E4E9EE'},itemName:{fontSize:14,color:'#263B4B',fontWeight:'500'},link:{fontSize:13,color:'#0088B0'},columnId:{width:125},columnName:{flex:1,minWidth:150},columnEmail:{flex:1,minWidth:160},tableLabel:{fontSize:12,fontWeight:'600',color:'#667582'},
+  section:{gap:18}, title:{color:'#263B4B',fontSize:28,fontWeight:'700'},subtitle:{color:'#263B4B',fontSize:18,fontWeight:'600'}, body:{color:'#667582',fontSize:14,lineHeight:23},error:{color:'#A13624',lineHeight:23},card:{backgroundColor:'white',borderWidth:1,borderColor:'#E4E9EE',borderRadius:4,padding:18,gap:16},row:{flexDirection:'row',flexWrap:'wrap',gap:10},input:{borderWidth:1,borderColor:'#CDD6DE',borderRadius:4,padding:11,fontSize:16,color:'#263B4B',minHeight:40},button:{backgroundColor:'#0088B0',paddingVertical:9,paddingHorizontal:12,borderRadius:4,alignSelf:'flex-start'},buttonText:{color:'white',fontWeight:'600'},choice:{backgroundColor:'#F0F7FA',paddingVertical:9,paddingHorizontal:12,borderRadius:4},preview:{backgroundColor:'#FFFFFF',padding:16,borderRadius:12,gap:14},student:{borderTopWidth:1,borderTopColor:'#E4E9EE',paddingVertical:12,gap:12,flexDirection:'row',flexWrap:'wrap',alignItems:'center'},
 });

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { demoQuizzes, demoRoom, demoStudents } from './src/data/demo';
+import { TeacherToolbar, type WorkspaceTab } from './src/components/TeacherToolbar';
 import { TeacherAuthScreen } from './src/features/auth/TeacherAuthScreen';
 import { useTeacherAuth } from './src/features/auth/useTeacherAuth';
 import { supabase } from './src/lib/supabase';
@@ -13,7 +14,7 @@ import { LaunchManager } from './src/features/launch/LaunchManager';
 
 type Page = 'home' | 'teacher' | 'student' | 'account';
 type Tab = 'Overview' | 'Quizzes' | 'Roster';
-const colors = { ink: '#193C38', muted: '#61736E', paper: '#F6F5EF', white: '#FFFFFF', line: '#DFE6DD', teal: '#256B5B', pale: '#EAF1E8', orange: '#B75432' };
+const colors = { ink: '#263B4B', muted: '#667582', paper: '#FFFFFF', white: '#FFFFFF', line: '#E4E9EE', teal: '#0088B0', pale: '#F0F7FA', orange: '#D66A43' };
 
 function Button({ title, onPress, secondary = false }: { title: string; onPress: () => void; secondary?: boolean }) {
   return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [s.button, secondary && s.secondary, pressed && { opacity: 0.75 }]}>
@@ -30,7 +31,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('Overview');
   const [preview, setPreview] = useState<number | null>(null);
   const auth = useTeacherAuth();
-  const [workspaceTab, setWorkspaceTab] = useState<'classes' | 'quizzes' | 'launch' | 'results'>('classes');
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('launch');
   const [resultsSession,setResultsSession]=useState('');
   const [selectedClass, setSelectedClass] = useState('');
   const [quizDirty, setQuizDirty] = useState(false);
@@ -58,49 +59,36 @@ export default function App() {
     else if (action) { setPage(action); setPreview(null); }
   }
 
+  const inWorkspace=page==='account'&&!!auth.profile&&!!auth.session&&auth.profile.id===auth.session.user.id&&!auth.loading;
+  function selectTab(next:WorkspaceTab){if(quizDirty&&next!=='quizzes')setPendingExit(next);else setWorkspaceTab(next);}
   return <View style={s.root}>
     <StatusBar style="dark" />
+    {inWorkspace&&<TeacherToolbar teacherId={auth.profile!.id} teacherName={auth.profile!.full_name} tab={workspaceTab} selectedClass={selectedClass} onClassSelect={setSelectedClass} onTab={selectTab} onHome={()=>navigate('home')} onSignOut={()=>void signOut()} signingOut={signingOut}/> }
     <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-      <View style={[s.container, { paddingHorizontal: wide ? 40 : 20 }]}>
-        <View style={s.header}>
+      <View style={[s.container, { paddingHorizontal: wide ? 32 : 18 }]}>
+        {!inWorkspace&&<View style={s.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Classpulse home" onPress={() => navigate('home')} style={s.brand}>
             <View style={s.mark}><Text style={s.markText}>cp</Text></View>
             <Text style={s.brandText}>Classpulse<Text style={{ color: colors.orange }}>.</Text></Text>
           </Pressable>
-          {page !== 'home' ? <Button title="Home" secondary onPress={() => navigate('home')} /> : <Tag>Made for your classroom</Tag>}
-        </View>
-        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 7 · Follow student answers in Live Results. Hide names, responses or scores when projecting in class.' : 'STEP 5 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
+          {page !== 'home' ? <Button title="Home" secondary onPress={() => navigate('home')} /> : <Text style={s.small}>Classroom assessment</Text>}
+        </View>}
+        {!supabase&&<View style={s.notice}><Text style={s.noticeText}>Teacher sign in needs a Supabase connection.</Text></View>}
 
         {!!pendingExit && <Card style={{ gap: 14 }}><Text style={s.cardTitle}>You have unsaved quiz changes.</Text><Text style={s.body}>Cancel to return to the editor and save your draft, or discard those edits to continue.</Text><Button title="Cancel — keep editing" secondary onPress={() => setPendingExit(null)} /><Button title="Discard changes and continue" onPress={discardAndContinue} /></Card>}
         {page === 'account' && (auth.loading ? <Card><Text style={s.body}>Opening your workspace…</Text></Card> : auth.profile && auth.session && auth.profile.id === auth.session.user.id ? <>
-          <View style={s.pageHeading}><Text style={s.eyebrow}>YOUR PRIVATE TEACHER WORKSPACE</Text><Text accessibilityRole="header" style={s.title}>Welcome, {auth.profile.full_name}.</Text><Text style={s.body}>{auth.session.user.email}</Text></View>
-          <View style={s.wrap}><Button title="My classes" secondary={workspaceTab !== 'classes'} onPress={() => { if (quizDirty) setPendingExit('classes'); else setWorkspaceTab('classes'); }} /><Button title="My quizzes" secondary={workspaceTab !== 'quizzes'} onPress={() => setWorkspaceTab('quizzes')} /><Button title="Launch" secondary={workspaceTab !== 'launch'} onPress={() => { if (quizDirty) setPendingExit('launch'); else setWorkspaceTab('launch'); }} /><Button title="Live Results" secondary={workspaceTab !== 'results'} onPress={() => { if (quizDirty) setPendingExit('results'); else setWorkspaceTab('results'); }} /></View>
           <View style={{ display: workspaceTab === 'classes' ? 'flex' : 'none' }}><RosterManager key={auth.profile.id} teacherId={auth.profile.id} selectedRosterId={selectedClass} onClassSelect={setSelectedClass} /></View>
           <View style={{ display: workspaceTab === 'quizzes' ? 'flex' : 'none' }}><QuizManager key={`${auth.profile.id}-${quizEpoch}`} teacherId={auth.profile.id} onDirtyChange={setQuizDirty} /></View>
           <View style={{ display: workspaceTab === 'launch' ? 'flex' : 'none' }}><LaunchManager key={auth.profile.id} teacherId={auth.profile.id} active={workspaceTab === 'launch'} selectedRosterId={selectedClass} onClassSelect={setSelectedClass} onResults={id=>{setResultsSession(id);setWorkspaceTab('results');}} /></View>
           <View style={{display:workspaceTab==='results'?'flex':'none'}}><LiveResults key={auth.profile.id} teacherId={auth.profile.id} active={workspaceTab==='results'} requestedSession={resultsSession}/></View>
           {!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}
-          <Button title={signingOut ? 'Signing out…' : 'Sign out'} secondary onPress={() => void signOut()} />
         </> : auth.session ? <Card style={{ gap: 16 }}><Text style={s.cardTitle}>We could not open your workspace.</Text><Text accessibilityRole="alert" style={s.body}>{auth.profileError || 'Your teacher profile has not been verified.'}</Text><Button title="Retry workspace" onPress={auth.retryProfile} /><Button title={signingOut ? 'Signing out…' : 'Sign out'} secondary onPress={() => void signOut()} />{!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}</Card> : <TeacherAuthScreen onPreview={() => navigate('teacher')} />)}
 
         {page === 'home' && <>
-          <View style={[s.hero, wide && { flexDirection: 'row', alignItems: 'center' }]}>
-            <View style={{ flex: 1, gap: 22 }}>
-              <Text style={s.eyebrow}>A LITTLE CHECK-IN. A LOT OF CLARITY.</Text>
-              <Text accessibilityRole="header" style={[s.heroTitle, { fontSize: wide ? 58 : 40 }]}>Know where your{wide ? '\n' : ' '}class stands.</Text>
-              <Text style={s.heroBody}>Bring every student into the conversation. A simple space for classroom quizzes, quick polls, and thoughtful feedback.</Text>
-              <View style={s.wrap}><Tag>Up to 150 students per class</Tag><Tag>Phone-friendly access</Tag></View>
-            </View>
-            <Card style={{ flex: 1, gap: 20, backgroundColor: colors.ink, borderColor: colors.ink, padding: 30 }}>
-              <Text style={[s.eyebrow, { color: '#B7CABC' }]}>YOUR CLASSROOM, AT A GLANCE</Text>
-              <Text style={{ fontSize: 27, fontWeight: '600', color: 'white' }}>Small questions. Better teaching.</Text>
-              {['Create a quiz around your lesson', 'Let students join with their ID', 'See understanding as it happens'].map((item, index) => <View key={item} style={s.featureRow}><Text style={s.number}>{index + 1}</Text><Text style={s.featureText}>{item}</Text></View>)}
-              <Text style={{ color: '#B7CABC', lineHeight: 21 }}>We’re building this together, one tested step at a time.</Text>
-            </Card>
-          </View>
-          <View style={[s.columns, wide && { flexDirection: 'row' }]}>
-            <Card style={{ flex: 1, gap: 16 }}><Text style={s.eyebrow}>FOR TEACHERS</Text><Text accessibilityRole="header" style={s.cardTitle}>Your teaching workspace</Text><Text style={s.body}>Sign in to your own workspace, or explore the sample dashboard from the sign-in screen.</Text><Button title={auth.profile ? 'Open my workspace →' : 'Teacher sign in →'} onPress={() => navigate('account')} /></Card>
-            <Card style={{ flex: 1, gap: 16 }}><Text style={s.eyebrow}>FOR STUDENTS</Text><Text accessibilityRole="header" style={s.cardTitle}>A quick way into class</Text><Text style={s.body}>Join your teacher’s prepared room with your Student ID. No student password to remember.</Text><Button title="Open student entry →" secondary onPress={() => navigate('student')} /></Card>
+          <View style={{gap:12,paddingVertical:24}}><Text accessibilityRole="header" style={s.title}>Classroom quizzes, made simple.</Text><Text style={s.body}>Teachers launch a quiz. Students join with their room name and Student ID.</Text></View>
+          <View style={[s.columns,wide&&{flexDirection:'row'}]}>
+           <Card style={{flex:1,gap:16}}><Text style={s.cardTitle}>Teacher</Text><Text style={s.body}>Prepare quizzes and see your class’s responses.</Text><Button title={auth.profile?'Open workspace':'Teacher sign in'} onPress={()=>navigate('account')}/></Card>
+           <Card style={{flex:1,gap:16}}><Text style={s.cardTitle}>Student</Text><Text style={s.body}>Join the room shared by your teacher.</Text><Button title="Student entry" secondary onPress={()=>navigate('student')}/></Card>
           </View>
         </>}
 
@@ -129,7 +117,7 @@ export default function App() {
 
         {page === 'student' && <StudentEntry />}
         <View style={s.footer}>
-          <View style={{ gap: 5 }}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 7 of 10</Text></View>
+          <View style={{ gap: 5 }}><Text style={s.small}>Classpulse</Text></View>
           <Pressable accessibilityRole="link" accessibilityLabel="Powered by IMT Hyderabad. Open the institute website." onPress={() => { void Linking.openURL('https://www.imthyderabad.edu.in/'); }} style={s.instituteBrand}>
             <Text style={s.instituteCaption}>Powered by</Text>
             <Image source={require('./assets/imt-hyderabad-logo.png')} resizeMode="contain" style={s.instituteLogo} accessibilityLabel="Institute of Management Technology Hyderabad logo" />
@@ -142,7 +130,7 @@ export default function App() {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.paper }, scroll: { flexGrow: 1 },
-  container: { width: '100%', maxWidth: 1180, alignSelf: 'center', paddingTop: 24, paddingBottom: 24, gap: 22 },
+  container: { width: '100%', maxWidth: 1180, alignSelf: 'center', paddingTop: 30, paddingBottom: 20, gap: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, paddingBottom: 10 },
   brand: { flexDirection: 'row', gap: 10, alignItems: 'center' }, mark: { backgroundColor: colors.ink, borderRadius: 12, padding: 8, width: 42, height: 42, justifyContent: 'center', alignItems: 'center' }, markText: { color: '#FFFFFF', fontWeight: '700', fontSize: 20 }, brandText: { color: colors.ink, fontSize: 26, fontWeight: '700' },
   notice: { backgroundColor: colors.pale, padding: 15, borderRadius: 12, gap: 12 }, noticeText: { color: colors.ink, fontSize: 12, lineHeight: 20, fontWeight: '600' },
@@ -150,14 +138,14 @@ const s = StyleSheet.create({
   eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1.6, color: colors.teal, lineHeight: 18 },
   columns: { gap: 20 }, card: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 20, padding: 24 },
   cardTitle: { color: colors.ink, fontSize: 23, fontWeight: '600', lineHeight: 31 }, body: { color: colors.muted, fontSize: 15, lineHeight: 24 }, small: { color: colors.muted, fontSize: 12, lineHeight: 20 },
-  button: { minHeight: 46, backgroundColor: colors.teal, paddingHorizontal: 19, paddingVertical: 13, borderRadius: 10, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-start' }, buttonText: { fontSize: 14, fontWeight: '600', color: 'white' }, secondary: { backgroundColor: colors.pale },
+  button: { minHeight: 40, backgroundColor: colors.teal, paddingHorizontal: 19, paddingVertical: 10, borderRadius: 4, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-start' }, buttonText: { fontSize: 14, fontWeight: '600', color: 'white' }, secondary: { backgroundColor: colors.pale },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, justifyContent: 'space-between' }, tag: { borderRadius: 30, backgroundColor: colors.pale, paddingHorizontal: 12, paddingVertical: 7, alignSelf: 'flex-start' }, tagText: { fontSize: 11, color: colors.teal, fontWeight: '600' },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 14 }, number: { color: '#D0DAB9', fontSize: 16, backgroundColor: '#31554F', width: 32, height: 32, textAlign: 'center', lineHeight: 32, borderRadius: 16 }, featureText: { color: 'white', flex: 1, fontSize: 15, lineHeight: 23 },
   pageHeading: { gap: 12, paddingTop: 16 }, title: { fontSize: 34, lineHeight: 43, fontWeight: '700', color: colors.ink, letterSpacing: -0.8 }, tabs: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' }, tab: { paddingVertical: 12, paddingHorizontal: 22, borderRadius: 10 }, activeTab: { backgroundColor: colors.ink }, tabText: { color: colors.muted, fontSize: 14, fontWeight: '600' }, stat: { color: colors.ink, fontWeight: '700', fontSize: 36 }, sectionTitle: { color: colors.ink, fontSize: 20, fontWeight: '600', lineHeight: 28 },
   rosterRow: { flexDirection: 'row', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.line, gap: 12, alignItems: 'center' }, idText: { color: colors.ink, fontSize: 13, fontWeight: '600' },
-  studentLayout: { gap: 32, paddingVertical: 24 }, label: { color: colors.ink, fontSize: 13, fontWeight: '600' }, input: { borderWidth: 1, borderColor: '#BBCAC0', borderRadius: 10, padding: 14, minHeight: 50, fontSize: 16, color: colors.ink, backgroundColor: '#FCFCF9' }, error: { color: '#A13624', fontSize: 14, lineHeight: 22 },
-  instituteBrand: { backgroundColor: '#FFFFFF', padding: 12, borderRadius: 12, gap: 6, maxWidth: '100%', alignSelf: 'flex-start' },
+  studentLayout: { gap: 32, paddingVertical: 24 }, label: { color: colors.ink, fontSize: 13, fontWeight: '600' }, input: { borderWidth: 1, borderColor: '#CDD6DE', borderRadius: 10, padding: 14, minHeight: 50, fontSize: 16, color: colors.ink, backgroundColor: '#FFFFFF' }, error: { color: '#A13624', fontSize: 14, lineHeight: 22 },
+  instituteBrand: { backgroundColor: '#FFFFFF', padding: 0, borderRadius: 0, flexDirection:'row', alignItems:'center', gap: 10, maxWidth: '100%', alignSelf: 'flex-start' },
   instituteCaption: { color: colors.muted, fontSize: 12, lineHeight: 19, fontWeight: '600' },
-  instituteLogo: { width: 270, height: 80, maxWidth: '100%' },
+  instituteLogo: { width: 170, height: 50, maxWidth: '100%' },
   footer: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 22, marginTop: 24, flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 },
 });
