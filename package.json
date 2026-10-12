@@ -9,7 +9,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "typecheck": "tsc --noEmit",
-    "build:web": "expo export --platform web"
+    "build:web": "node scripts/check-web-env.mjs && expo export --platform web --clear"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",
