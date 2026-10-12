@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {Modal,Pressable,ScrollView,StyleSheet,Switch,Text,View} from 'react-native';
+import {DownloadReport} from '../reports/DownloadReport';
 import {supabase} from '../../lib/supabase';
 import {ResultDocument,cloudTerms,responseLabel,summarize} from './model';
 type Session={id:string;roster_id:string;quiz_title_snapshot:string;class_name_snapshot:string;created_at:string;status:string};
@@ -64,7 +65,7 @@ export function LiveResults({teacherId,active,requestedSession,report=false}:{te
  const summary=doc?summarize(doc):null;
  function choose(id:string){setDoc(null);setError('');setSessionId(id);setPicker(false);}
  return <View style={s.section}>
-  <View style={s.toolbar}><Text accessibilityRole="header" style={s.title}>{report?'Saved report':'Live Results'}</Text><View style={s.wrap}>{!report&&<Button title="Select session" disabled={actionBusy} onPress={()=>setPicker(true)}/>}{!!sessionId&&<Button title={refreshing?'Updating…':'Refresh'} onPress={()=>refresh.current()}/>}</View></View>
+  <View style={s.toolbar}><Text accessibilityRole="header" style={s.title}>{report?'Saved report':'Live Results'}</Text><View style={s.wrap}>{report&&doc?.status==='ended'&&<DownloadReport doc={doc}/>} {!report&&<Button title="Select session" disabled={actionBusy} onPress={()=>setPicker(true)}/>}{!!sessionId&&<Button title={refreshing?'Updating…':'Refresh'} onPress={()=>refresh.current()}/>}</View></View>
   {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
   <Modal visible={picker} transparent animationType="fade" onRequestClose={()=>setPicker(false)}><View style={s.overlay}><View accessibilityViewIsModal style={s.dialog}><View style={s.toolbar}><Text style={s.heading}>Select session</Text><Pressable accessibilityRole="button" accessibilityLabel="Close session selection" onPress={()=>setPicker(false)}><Text style={s.close}>×</Text></Pressable></View><Text style={s.small}>Latest 50 sessions</Text><ScrollView style={{maxHeight:400}}>{sessions.map(session=><Pressable key={session.id} accessibilityRole="button" accessibilityLabel={`Select session: ${session.quiz_title_snapshot}, ${session.class_name_snapshot}, ${new Date(session.created_at).toLocaleString()}`} accessibilityState={{selected:session.id===sessionId}} disabled={actionBusy} onPress={()=>choose(session.id)} style={[s.sessionRow,session.id===sessionId&&{backgroundColor:'#F0F7FA'}]}><Text style={s.name}>{session.quiz_title_snapshot}</Text><Text style={s.small}>{session.class_name_snapshot} · {new Date(session.created_at).toLocaleString()}</Text></Pressable>)}</ScrollView>{!sessions.length&&<Text style={s.body}>Prepare a quiz in Launch first.</Text>}</View></View></Modal>
   {doc&&summary&&<>
