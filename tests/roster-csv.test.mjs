@@ -1,0 +1,11 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { parseRosterCsv, rosterTemplate } from '../src/features/rosters/csv.ts';
+test('preserves leading zeros, full names and blank emails',()=>{const p=parseRosterCsv(rosterTemplate+'001,Mira Devika Rao,\r\n');assert.deepEqual(p.errors,[]);assert.deepEqual(p.rows,[{id:'001',name:'Mira Devika Rao',emailid:''}]);});
+test('reads Excel BOM, comma in quoted name and escaped quotation',()=>{const p=parseRosterCsv('\uFEFFid,name,emailid\r\n25A2HP001,"Rao, Mira ""Devi""",mira@example.invalid\r\n');assert.deepEqual(p.errors,[]);assert.equal(p.rows[0].name,'Rao, Mira "Devi"');});
+test('rejects wrong headers and missing email column',()=>{assert.ok(parseRosterCsv('Student ID,Name,Email\na,b,').errors.length);assert.ok(parseRosterCsv('id,name,emailid\na,b').errors.length);});
+test('rejects case-insensitive duplicate IDs',()=>{assert.match(parseRosterCsv('id,name,emailid\na1,A,\nA1,B,').errors.join(' '),/duplicate/);});
+test('requires ID and full name and validates provided email',()=>{assert.ok(parseRosterCsv('id,name,emailid\n,A,\na,,\nb,B,bad').errors.length >= 3);});
+test('allows exactly 150 students and rejects 151',()=>{const body=Array.from({length:151},(_,i)=>`${i},Student ${i},`);assert.equal(parseRosterCsv(rosterTemplate+body.slice(0,150).join('\n')).errors.length,0);assert.match(parseRosterCsv(rosterTemplate+body.join('\n')).errors.join(' '),/150/);});
+test('rejects unclosed quotes and empty template',()=>{assert.ok(parseRosterCsv(rosterTemplate+'a,"name,').errors.length);assert.ok(parseRosterCsv(rosterTemplate).errors.length);});
+test('ignores empty rows and rejects oversized input',()=>{assert.equal(parseRosterCsv(rosterTemplate+'\r\n,,\r\na,A,\r\n').rows.length,1);assert.ok(parseRosterCsv('x'.repeat(262145)).errors.length);});

@@ -5,6 +5,7 @@ import { demoQuizzes, demoRoom, demoStudents } from './src/data/demo';
 import { TeacherAuthScreen } from './src/features/auth/TeacherAuthScreen';
 import { useTeacherAuth } from './src/features/auth/useTeacherAuth';
 import { supabase } from './src/lib/supabase';
+import { RosterManager } from './src/features/rosters/RosterManager';
 
 type Page = 'home' | 'teacher' | 'student' | 'account';
 type Tab = 'Overview' | 'Quizzes' | 'Roster';
@@ -63,12 +64,12 @@ export default function App() {
           </Pressable>
           {page !== 'home' ? <Button title="Home" secondary onPress={() => navigate('home')} /> : <Tag>Made for your classroom</Tag>}
         </View>
-        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 2 · Teacher login connected. Sample classrooms remain fictional; live quizzes arrive later.' : 'STEP 2 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
+        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 3 · Named classes and CSV rosters. Sample classrooms remain fictional; live quizzes arrive later.' : 'STEP 3 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
 
         {page === 'account' && (auth.loading ? <Card><Text style={s.body}>Opening your workspace…</Text></Card> : auth.profile && auth.session && auth.profile.id === auth.session.user.id ? <>
           <View style={s.pageHeading}><Text style={s.eyebrow}>YOUR PRIVATE TEACHER WORKSPACE</Text><Text accessibilityRole="header" style={s.title}>Welcome, {auth.profile.full_name}.</Text><Text style={s.body}>{auth.session.user.email}</Text></View>
           <View style={[s.columns, wide && { flexDirection: 'row' }]}>
-            <Card style={{ flex: 1, gap: 16 }}><Text style={s.cardTitle}>Your classes</Text><Text style={s.body}>Create multiple named class rosters and import student lists in Step 3. Your workspace has no classes yet.</Text></Card>
+            <View style={{ flex: 2 }}><RosterManager key={auth.profile.id} teacherId={auth.profile.id} /></View>
             <Card style={{ flex: 1, gap: 16 }}><Text style={s.cardTitle}>Your quiz folders</Text><Text style={s.body}>Organize quizzes by year, subject, and section in Step 4. Your workspace has no quizzes yet.</Text></Card>
           </View>
           {!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}
@@ -132,7 +133,7 @@ export default function App() {
             </>}
           </Card>
         </View>}
-        <View style={s.footer}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 2 of 10</Text></View>
+        <View style={s.footer}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 3 of 10</Text></View>
       </View>
     </ScrollView>
   </View>;
