@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { demoQuizzes, demoRoom, demoStudents } from './src/data/demo';
@@ -6,6 +6,7 @@ import { TeacherAuthScreen } from './src/features/auth/TeacherAuthScreen';
 import { useTeacherAuth } from './src/features/auth/useTeacherAuth';
 import { supabase } from './src/lib/supabase';
 import { RosterManager } from './src/features/rosters/RosterManager';
+import { QuizManager } from './src/features/quizzes/QuizManager';
 
 type Page = 'home' | 'teacher' | 'student' | 'account';
 type Tab = 'Overview' | 'Quizzes' | 'Roster';
@@ -31,9 +32,15 @@ export default function App() {
   const [joined, setJoined] = useState<Student | null>(null);
   const [preview, setPreview] = useState<number | null>(null);
   const auth = useTeacherAuth();
+  const [workspaceTab, setWorkspaceTab] = useState<'classes' | 'quizzes'>('classes');
+  const [quizDirty, setQuizDirty] = useState(false);
+  const [quizEpoch, setQuizEpoch] = useState(0);
+  const [pendingExit, setPendingExit] = useState<Page | 'classes' | 'signout' | null>(null);
+  useEffect(() => { setQuizDirty(false); setPendingExit(null); }, [auth.profile?.id]);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState('');
-  async function signOut() {
+  async function signOut(force = false) {
+    if (quizDirty && !force) { setPendingExit('signout'); return; }
     if (!supabase || signingOut) return;
     setSigningOut(true); setSignOutError('');
     try {
@@ -43,7 +50,13 @@ export default function App() {
     finally { setSigningOut(false); }
   }
 
-  function navigate(next: Page) { setPage(next); setError(''); setJoined(null); setPreview(null); }
+  function navigate(next: Page) { if (quizDirty && next !== page) { setPendingExit(next); return; } setPage(next); setError(''); setJoined(null); setPreview(null); }
+  function discardAndContinue() {
+    const action = pendingExit; setPendingExit(null); setQuizDirty(false); setQuizEpoch(value => value + 1);
+    if (action === 'signout') void signOut(true);
+    else if (action === 'classes') setWorkspaceTab('classes');
+    else if (action) { setPage(action); setError(''); setJoined(null); setPreview(null); }
+  }
   function join() {
     const normalizedRoom = room.trim().toUpperCase();
     const normalizedId = studentId.trim().toUpperCase();
@@ -64,14 +77,14 @@ export default function App() {
           </Pressable>
           {page !== 'home' ? <Button title="Home" secondary onPress={() => navigate('home')} /> : <Tag>Made for your classroom</Tag>}
         </View>
-        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 3 · Named classes and CSV rosters. Sample classrooms remain fictional; live quizzes arrive later.' : 'STEP 3 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
+        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 4 · Classes, quiz folders, and versioned quiz creation. Live sessions arrive later.' : 'STEP 4 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
 
+        {!!pendingExit && <Card style={{ gap: 14 }}><Text style={s.cardTitle}>You have unsaved quiz changes.</Text><Text style={s.body}>Cancel to return to the editor and save your draft, or discard those edits to continue.</Text><Button title="Cancel — keep editing" secondary onPress={() => setPendingExit(null)} /><Button title="Discard changes and continue" onPress={discardAndContinue} /></Card>}
         {page === 'account' && (auth.loading ? <Card><Text style={s.body}>Opening your workspace…</Text></Card> : auth.profile && auth.session && auth.profile.id === auth.session.user.id ? <>
           <View style={s.pageHeading}><Text style={s.eyebrow}>YOUR PRIVATE TEACHER WORKSPACE</Text><Text accessibilityRole="header" style={s.title}>Welcome, {auth.profile.full_name}.</Text><Text style={s.body}>{auth.session.user.email}</Text></View>
-          <View style={[s.columns, wide && { flexDirection: 'row' }]}>
-            <View style={{ flex: 2 }}><RosterManager key={auth.profile.id} teacherId={auth.profile.id} /></View>
-            <Card style={{ flex: 1, gap: 16 }}><Text style={s.cardTitle}>Your quiz folders</Text><Text style={s.body}>Organize quizzes by year, subject, and section in Step 4. Your workspace has no quizzes yet.</Text></Card>
-          </View>
+          <View style={s.wrap}><Button title="My classes" secondary={workspaceTab !== 'classes'} onPress={() => { if (quizDirty) setPendingExit('classes'); else setWorkspaceTab('classes'); }} /><Button title="My quizzes" secondary={workspaceTab !== 'quizzes'} onPress={() => setWorkspaceTab('quizzes')} /></View>
+          <View style={{ display: workspaceTab === 'classes' ? 'flex' : 'none' }}><RosterManager key={auth.profile.id} teacherId={auth.profile.id} /></View>
+          <View style={{ display: workspaceTab === 'quizzes' ? 'flex' : 'none' }}><QuizManager key={`${auth.profile.id}-${quizEpoch}`} teacherId={auth.profile.id} onDirtyChange={setQuizDirty} /></View>
           {!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}
           <Button title={signingOut ? 'Signing out…' : 'Sign out'} secondary onPress={() => void signOut()} />
         </> : auth.session ? <Card style={{ gap: 16 }}><Text style={s.cardTitle}>We could not open your workspace.</Text><Text accessibilityRole="alert" style={s.body}>{auth.profileError || 'Your teacher profile has not been verified.'}</Text><Button title="Retry workspace" onPress={auth.retryProfile} /><Button title={signingOut ? 'Signing out…' : 'Sign out'} secondary onPress={() => void signOut()} />{!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}</Card> : <TeacherAuthScreen onPreview={() => navigate('teacher')} />)}
@@ -133,7 +146,7 @@ export default function App() {
             </>}
           </Card>
         </View>}
-        <View style={s.footer}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 3 of 10</Text></View>
+        <View style={s.footer}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 4 of 10</Text></View>
       </View>
     </ScrollView>
   </View>;

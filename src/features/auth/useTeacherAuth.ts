@@ -54,7 +54,7 @@ export function useTeacherAuth() {
     }
     void loadProfile();
     return () => { active = false; };
-  }, [session?.access_token, retry]);
+  }, [session?.user.id, session?.user.email_confirmed_at, retry]);
 
   return { session, profile, loading, profileError, retryProfile: () => setRetry(value => value + 1) };
 }
