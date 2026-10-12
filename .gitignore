@@ -10,3 +10,4 @@ coverage/
 private-data/
 backups/
 .DS_Store
+/supabase password.txt
