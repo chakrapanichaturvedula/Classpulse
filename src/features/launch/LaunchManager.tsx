@@ -5,6 +5,7 @@ type ClassRow={id:string;name:string};type Room={id:string;roster_id:string;room
 function Button({title,onPress,disabled=false,selected=false}:{title:string;onPress:()=>void;disabled?:boolean;selected?:boolean}){return <Pressable accessibilityRole="button" accessibilityState={{disabled,selected}} disabled={disabled} onPress={onPress} style={[s.button,selected&&{backgroundColor:'#193C38'},disabled&&{opacity:0.45}]}><Text style={s.buttonText}>{title}</Text></Pressable>;}
 export function LaunchManager({teacherId,active,selectedRosterId,onClassSelect}:{teacherId:string;active:boolean;selectedRosterId:string;onClassSelect:(id:string)=>void}){
  const [classes,setClasses]=useState<ClassRow[]>([]),[rooms,setRooms]=useState<Room[]>([]),[folders,setFolders]=useState<Folder[]>([]),[quizzes,setQuizzes]=useState<Quiz[]>([]),[versions,setVersions]=useState<Version[]>([]),[sessions,setSessions]=useState<Session[]>([]);
+ const [participants,setParticipants]=useState<{session_id:string;student_id:string}[]>([]);
  const [classId,setClassId]=useState(selectedRosterId),[roomName,setRoomName]=useState(''),[folderId,setFolderId]=useState('all'),[quizId,setQuizId]=useState('');
  const [busy,setBusy]=useState(false),[ready,setReady]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[confirmEnd,setConfirmEnd]=useState(false);
  const working=useRef(false),alive=useRef(true),selectedRef=useRef(selectedRosterId); selectedRef.current=selectedRosterId;
@@ -18,10 +19,11 @@ export function LaunchManager({teacherId,active,selectedRosterId,onClassSelect}:
    supabase!.from('quizzes').select('id,title,folder_id').eq('teacher_id',teacherId).order('created_at',{ascending:false}),
    supabase!.from('quiz_versions').select('id,quiz_id,revision,version_number').eq('teacher_id',teacherId).order('version_number',{ascending:false}),
    supabase!.from('quiz_sessions').select('id,room_id,quiz_id,quiz_version_id,quiz_title_snapshot,class_name_snapshot,student_count,status').eq('teacher_id',teacherId).neq('status','ended'),
+   supabase!.from('session_participants').select('session_id,student_id').eq('teacher_id',teacherId),
   ]);
   if(!alive.current)return;
-  if(result.some(r=>r.error)){setReady(false);throw new Error('Install the classroom launch setup in Supabase, then refresh this tab.');}
-  const newClasses=result[0].data??[];setClasses(newClasses);setRooms(result[1].data??[]);setFolders(result[2].data??[]);setQuizzes(result[3].data??[]);setVersions(result[4].data??[]);setSessions(result[5].data??[]);setReady(true);
+  if(result.some(r=>r.error)){setReady(false);throw new Error('Install the classroom launch and student entry setups in Supabase, then refresh this tab.');}
+  const newClasses=result[0].data??[];setClasses(newClasses);setRooms(result[1].data??[]);setFolders(result[2].data??[]);setQuizzes(result[3].data??[]);setVersions(result[4].data??[]);setSessions(result[5].data??[]);setParticipants(result[6].data??[]);setReady(true);
   if(!newClasses.some(c=>c.id===selectedRef.current)&&newClasses.length){setClassId(newClasses[0].id);onClassSelect(newClasses[0].id);}
  }
  async function run(action:()=>Promise<void>){if(working.current)return;working.current=true;setBusy(true);setError('');setNotice('');try{await action();}catch(error){if(alive.current)setError(error instanceof Error?error.message:'Could not complete this action.');}finally{working.current=false;if(alive.current)setBusy(false);}}
@@ -43,7 +45,7 @@ export function LaunchManager({teacherId,active,selectedRosterId,onClassSelect}:
    {quiz&&<Text style={s.body}>Launch “{quiz.title}” for {currentClass?.name} in room {room.room_name}.</Text>}
    <Button title="Launch quiz" disabled={busy||!ready||!quiz||!!session} onPress={launch}/>
   </View>}
-  {session&&<View style={s.card}><Text style={s.heading}>Room session prepared</Text><Text style={s.body}>{session.quiz_title_snapshot} · {session.class_name_snapshot}{'\n'}{session.student_count} students in the saved session roster.</Text><Text style={s.body}>This stage prepares the room and fixed quiz copy. Real student entry, question delivery and response collection are the next stage.</Text>{confirmEnd?<><Text style={s.body}>End this prepared session and free the room?</Text><View style={s.row}><Button title="Confirm end session" disabled={busy} onPress={end}/><Button title="Cancel" disabled={busy} onPress={()=>setConfirmEnd(false)}/></View></>:<Button title="End session" disabled={busy} onPress={()=>setConfirmEnd(true)}/>}</View>}
+  {session&&<View style={s.card}><Text style={s.heading}>Room session prepared</Text><Text style={s.body}>{session.quiz_title_snapshot} · {session.class_name_snapshot}{'\n'}{session.student_count} students in the saved session roster.</Text><Text style={s.body}>Students can join from Student entry using this room name and their roster ID. Questions and response collection are the next step.</Text><Text style={s.body}>{participants.filter(p=>p.session_id===session.id).length} of {session.student_count} students have joined. Use Refresh launch list to update this count.</Text>{confirmEnd?<><Text style={s.body}>End this prepared session and free the room?</Text><View style={s.row}><Button title="Confirm end session" disabled={busy} onPress={end}/><Button title="Cancel" disabled={busy} onPress={()=>setConfirmEnd(false)}/></View></>:<Button title="End session" disabled={busy} onPress={()=>setConfirmEnd(true)}/>}</View>}
  </View>;
 }
 const s=StyleSheet.create({section:{gap:18},title:{color:'#193C38',fontSize:27,fontWeight:'700'},heading:{color:'#193C38',fontSize:20,fontWeight:'600'},body:{color:'#61736E',fontSize:14,lineHeight:23},error:{color:'#A13624',lineHeight:23},row:{flexDirection:'row',flexWrap:'wrap',gap:10},card:{backgroundColor:'white',borderWidth:1,borderColor:'#DFE6DD',borderRadius:20,padding:22,gap:16},button:{backgroundColor:'#256B5B',padding:14,borderRadius:10,alignSelf:'flex-start'},buttonText:{color:'white',fontWeight:'600'},room:{color:'#193C38',fontSize:26,fontWeight:'700',letterSpacing:1},input:{borderWidth:1,borderColor:'#BBCAC0',borderRadius:10,padding:14,fontSize:16,color:'#193C38',minHeight:48}});

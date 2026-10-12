@@ -2,17 +2,17 @@
 
 A classroom assessment app for a small group of college teachers. Maximum planned class size: 150 students.
 
-## Step 5A is ready for database installation and teacher review
-Welcome page, teacher dashboard with sample quiz and roster views, and student entry with a fictional waiting room. Teacher signup, confirmation, login, session restoration, logout and deployed profile isolation have passed review. Named classes, template downloads, CSV imports, persistence and deployed roster privacy checks have passed teacher review. Quiz folders/subfolders and authoring for three question types are implemented; run the Step 4 migration before using quizzes. Sample student entry remains local. There is no live quiz or report email sending yet.
+## Step 5B: student room entry is ready for database installation
+Teacher accounts, named class rosters, CSV import, quiz folders and quiz authoring are available. Classroom launch preparation has passed teacher review on the connected project. Students can now join a prepared session with Room Name + Student ID once the new student-entry migration is installed. Questions, answer submissions, launch modes, live results and report emails are still forthcoming.
 
 ### Try it on Windows
 Double-click Start-Classpulse.cmd in this folder. Keep its window open, then open http://localhost:8081 in your browser. Close the window when you are finished.
 
 The launcher uses an installed pnpm/npm, or the bundled Codex runtime if available. On another machine install a supported Node.js version and pnpm, run pnpm install, then pnpm web.
 
-Sample room: DEMO101. Sample student IDs: 25A2HP001, 25A2HP002, 25A2HP003. All names and records in the preview are fictional.
+Student entry checks the roster saved in the launched session. The sample teacher dashboard uses fictional names and records; it does not create a joinable sample room.
 
-See docs/step-05-launch.md for the Save quiz / classroom Launch workflow. Earlier quiz setup is in docs/step-04-testing.md. Roster checks remain in docs/step-03-testing.md. Teacher account setup remains in docs/step-02-setup.md. Step 1 checks remain in docs/step-01-testing.md. To test on a phone, connect to the same Wi-Fi and use the laptop's network address; localhost on a phone refers to the phone itself.
+See docs/step-05-student-entry.md for the student-entry setup and tests. See docs/step-05-launch.md for the Save quiz / classroom Launch workflow. Earlier quiz setup is in docs/step-04-testing.md. Roster checks remain in docs/step-03-testing.md. Teacher account setup remains in docs/step-02-setup.md. Step 1 checks remain in docs/step-01-testing.md. To test on a phone, connect to the same Wi-Fi and use the laptop's network address; localhost on a phone refers to the phone itself.
 
 ## Agreed scope
 - Teacher quiz creation and live classroom session controls.
@@ -27,10 +27,10 @@ pnpm typecheck
 pnpm build:web
 
 ## Architecture and portability
-React Native, Expo and TypeScript. Later stages add Supabase authentication, PostgreSQL and classroom updates, plus Brevo student report emails. Initial web hosting can use Cloudflare Pages. Keep migrations, deployment settings and replaceable provider integrations with the project for later college hosting.
+React Native, Expo and TypeScript. Supabase authentication and PostgreSQL are connected. Later stages add classroom updates and Brevo student report emails. Initial web hosting can use Cloudflare Pages. Keep migrations, deployment settings and replaceable provider integrations with the project for later college hosting.
 
 ## Sensitive information
 Never commit real rosters, credentials, database exports or private student reports. The GitHub repository is currently public. .env.example contains documentation only.
 
 ## Next stage
-Install and test classroom launch setup and privacy. Student admission and live question/answer delivery follow next.
+Install and test student room entry and privacy. Question delivery, answer submission and live results follow next.

@@ -18,10 +18,10 @@ Create a NEW Supabase SQL Editor query named Classpulse — Classroom launch. Ru
 
 Launch validates the saved quiz and freezes that version internally. It also copies the student list at launch. Changes to class rosters and quiz content affect later sessions. Starting a different quiz requires ending the room's existing session. Repeating the same launch request reuses the existing session.
 
-This stage creates a persistent waiting-room session. Real student authentication, question delivery, answers, and live results are the next stage; the student sample screen remains explicitly a sample. Do not invite real students until those features are implemented and tested.
+This stage creates a persistent waiting-room session. Step 5B adds real roster-checked entry; see docs/step-05-student-entry.md. Question delivery, answers and live results are later milestones. Test with a small fixture roster before classroom use.
 
 ## Privacy verification
 In a separate NEW query named Classpulse — Launch privacy check, run supabase/tests/classroom_launch.sql.
 Expected result: PASS: classroom launch, session copies and teacher isolation verified; fixtures rolled back.
 
-The test covers incomplete quiz rejection, teacher room isolation, repeated launch requests, fixed question and roster copies, one active session per room, and protected session writes. The local test passed in isolated PostgreSQL with simulated Supabase auth functions; deployed Supabase and teacher UI checks remain pending.
+The test covers incomplete quiz rejection, teacher room isolation, repeated launch requests, fixed question and roster copies, one active session per room, and protected session writes. The local test passed in isolated PostgreSQL with simulated Supabase auth functions; the teacher has installed the migration and verified room preparation on the connected Supabase project. The deployed privacy test remains pending.

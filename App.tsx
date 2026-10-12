@@ -7,11 +7,11 @@ import { useTeacherAuth } from './src/features/auth/useTeacherAuth';
 import { supabase } from './src/lib/supabase';
 import { RosterManager } from './src/features/rosters/RosterManager';
 import { QuizManager } from './src/features/quizzes/QuizManager';
+import { StudentEntry } from './src/features/students/StudentEntry';
 import { LaunchManager } from './src/features/launch/LaunchManager';
 
 type Page = 'home' | 'teacher' | 'student' | 'account';
 type Tab = 'Overview' | 'Quizzes' | 'Roster';
-type Student = typeof demoStudents[number];
 const colors = { ink: '#193C38', muted: '#61736E', paper: '#F6F5EF', white: '#FFFFFF', line: '#DFE6DD', teal: '#256B5B', pale: '#EAF1E8', orange: '#B75432' };
 
 function Button({ title, onPress, secondary = false }: { title: string; onPress: () => void; secondary?: boolean }) {
@@ -27,10 +27,6 @@ export default function App() {
   const wide = width >= 760;
   const [page, setPage] = useState<Page>('home');
   const [tab, setTab] = useState<Tab>('Overview');
-  const [room, setRoom] = useState('');
-  const [studentId, setStudentId] = useState('');
-  const [error, setError] = useState('');
-  const [joined, setJoined] = useState<Student | null>(null);
   const [preview, setPreview] = useState<number | null>(null);
   const auth = useTeacherAuth();
   const [workspaceTab, setWorkspaceTab] = useState<'classes' | 'quizzes' | 'launch'>('classes');
@@ -52,20 +48,12 @@ export default function App() {
     finally { setSigningOut(false); }
   }
 
-  function navigate(next: Page) { if (quizDirty && next !== page) { setPendingExit(next); return; } setPage(next); setError(''); setJoined(null); setPreview(null); }
+  function navigate(next: Page) { if (quizDirty && next !== page) { setPendingExit(next); return; } setPage(next); setPreview(null); }
   function discardAndContinue() {
     const action = pendingExit; setPendingExit(null); setQuizDirty(false); setQuizEpoch(value => value + 1);
     if (action === 'signout') void signOut(true);
     else if (action === 'classes' || action === 'launch') setWorkspaceTab(action);
-    else if (action) { setPage(action); setError(''); setJoined(null); setPreview(null); }
-  }
-  function join() {
-    const normalizedRoom = room.trim().toUpperCase();
-    const normalizedId = studentId.trim().toUpperCase();
-    if (!normalizedRoom || !normalizedId) { setError('Enter both a room name and your student ID.'); return; }
-    const student = demoStudents.find(value => value.studentId === normalizedId);
-    if (normalizedRoom !== demoRoom || !student) { setError('Those details do not match this sample room. Try DEMO101 and 25A2HP001.'); return; }
-    setRoom(normalizedRoom); setStudentId(normalizedId); setError(''); setJoined(student!);
+    else if (action) { setPage(action); setPreview(null); }
   }
 
   return <View style={s.root}>
@@ -79,7 +67,7 @@ export default function App() {
           </Pressable>
           {page !== 'home' ? <Button title="Home" secondary onPress={() => navigate('home')} /> : <Tag>Made for your classroom</Tag>}
         </View>
-        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 5 · Save quizzes, select a class and room, then launch. Live student answers arrive next.' : 'STEP 5 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
+        <View style={s.notice}><Text style={s.noticeText}>{supabase ? 'STEP 5 · Students can join a prepared classroom room. Questions and live answers arrive next.' : 'STEP 5 · Teacher accounts need a Supabase connection. Sample classrooms remain fictional; live quizzes arrive later.'}</Text></View>
 
         {!!pendingExit && <Card style={{ gap: 14 }}><Text style={s.cardTitle}>You have unsaved quiz changes.</Text><Text style={s.body}>Cancel to return to the editor and save your draft, or discard those edits to continue.</Text><Button title="Cancel — keep editing" secondary onPress={() => setPendingExit(null)} /><Button title="Discard changes and continue" onPress={discardAndContinue} /></Card>}
         {page === 'account' && (auth.loading ? <Card><Text style={s.body}>Opening your workspace…</Text></Card> : auth.profile && auth.session && auth.profile.id === auth.session.user.id ? <>
@@ -109,7 +97,7 @@ export default function App() {
           </View>
           <View style={[s.columns, wide && { flexDirection: 'row' }]}>
             <Card style={{ flex: 1, gap: 16 }}><Text style={s.eyebrow}>FOR TEACHERS</Text><Text accessibilityRole="header" style={s.cardTitle}>Your teaching workspace</Text><Text style={s.body}>Sign in to your own workspace, or explore the sample dashboard from the sign-in screen.</Text><Button title={auth.profile ? 'Open my workspace →' : 'Teacher sign in →'} onPress={() => navigate('account')} /></Card>
-            <Card style={{ flex: 1, gap: 16 }}><Text style={s.eyebrow}>FOR STUDENTS</Text><Text accessibilityRole="header" style={s.cardTitle}>A quick way into class</Text><Text style={s.body}>Try entering a room with a student ID. No student password to remember.</Text><Button title="Open student entry →" secondary onPress={() => navigate('student')} /></Card>
+            <Card style={{ flex: 1, gap: 16 }}><Text style={s.eyebrow}>FOR STUDENTS</Text><Text accessibilityRole="header" style={s.cardTitle}>A quick way into class</Text><Text style={s.body}>Join your teacher’s prepared room with your Student ID. No student password to remember.</Text><Button title="Open student entry →" secondary onPress={() => navigate('student')} /></Card>
           </View>
         </>}
 
@@ -136,19 +124,7 @@ export default function App() {
           </>}
         </>}
 
-        {page === 'student' && <View style={[s.studentLayout, wide && { flexDirection: 'row' }]}>
-          <View style={{ flex: 1, gap: 20 }}><Text style={s.eyebrow}>STUDENT ENTRY</Text><Text accessibilityRole="header" style={s.title}>Come on in.</Text><Text style={s.heroBody}>Your teacher will share a room name. All you need is that name and your student ID.</Text><Card style={{ backgroundColor: colors.pale, gap: 12 }}><Text style={s.cardTitle}>Try a sample student</Text><Text style={s.body}>Room: {demoRoom}{'\n'}Student ID: 25A2HP001{'\n'}Full Name: Mira Devika Rao</Text><Button title="Fill sample details" secondary onPress={() => { setRoom(demoRoom); setStudentId('25A2HP001'); setError(''); setJoined(null); }} /></Card></View>
-          <Card style={{ flex: 1, gap: 18 }}>
-            {joined ? <>
-              <Tag>Sample entry successful</Tag><Text accessibilityRole="header" style={s.cardTitle}>Welcome, {joined.fullName}.</Text><Text style={s.body}>Room {room} · {joined.studentId}</Text><View style={[s.notice, { padding: 24 }]}><Text style={s.sectionTitle}>You’re in the sample waiting room.</Text><Text style={s.body}>In the finished app, your teacher’s question will appear here. This preview does not connect to a teacher or verify a real roster.</Text></View><Button title="Back to student entry" secondary onPress={() => setJoined(null)} />
-            </> : <>
-              <Text style={s.cardTitle}>Join a room</Text><Text style={s.label}>Room name</Text><TextInput accessibilityLabel="Room name" style={s.input} placeholder="e.g. DEMO101" placeholderTextColor={colors.muted} value={room} onChangeText={value => { setRoom(value); setError(''); }} autoCapitalize="characters" autoCorrect={false} maxLength={32} returnKeyType="next" />
-              <Text style={s.label}>Student ID</Text><TextInput accessibilityLabel="Student ID" style={s.input} placeholder="e.g. 25A2HP001" placeholderTextColor={colors.muted} value={studentId} onChangeText={value => { setStudentId(value); setError(''); }} autoCapitalize="characters" autoCorrect={false} maxLength={64} onSubmitEditing={join} returnKeyType="go" />
-              {!!error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>{error}</Text>}
-              <Button title="Enter sample room →" onPress={join} /><Text style={s.small}>Preview only. Student authentication comes in Step 5.</Text>
-            </>}
-          </Card>
-        </View>}
+        {page === 'student' && <StudentEntry />}
         <View style={s.footer}>
           <View style={{ gap: 5 }}><Text style={s.small}>Classpulse · More understanding, one question at a time.</Text><Text style={s.small}>Step 5 of 10</Text></View>
           <Pressable accessibilityRole="link" accessibilityLabel="Powered by IMT Hyderabad. Open the institute website." onPress={() => { void Linking.openURL('https://www.imthyderabad.edu.in/'); }} style={s.instituteBrand}>

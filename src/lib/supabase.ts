@@ -19,3 +19,8 @@ export const supabase = isSupabaseConfigured ? createClient(url, key, {
     lock: processLock,
   },
 }) : null;
+
+// Student RPCs use the public role, independent of a teacher signed in on this device.
+export const studentSupabase = isSupabaseConfigured ? createClient(url, key, {
+  auth: { storageKey: 'classpulse-student-public', persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+}) : null;
