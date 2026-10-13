@@ -1,0 +1,14 @@
+export type FacultyRow={email:string;name?:string};
+export type FacultyPreview={rows:FacultyRow[];errors:string[]};
+export const facultyTemplate='email,name\r\n';
+export function validateFacultyRows(rows:FacultyRow[]):FacultyPreview{
+ const errors:string[]=[],seen=new Set<string>();const normalized=rows.map((r,i)=>{const email=r.email.trim().toLowerCase(),name=r.name?.trim();if(!email||email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))errors.push(`Row ${i+1}: enter a valid email address.`);if(name&&(name.length>200||/[\r\n]/.test(name)))errors.push(`Row ${i+1}: name must be one line, up to 200 characters.`);if(seen.has(email))errors.push(`Row ${i+1}: duplicate email ${email}.`);seen.add(email);return {email,...(name?{name}:{})};});
+ if(rows.length<1||rows.length>500)errors.push('Use 1 to 500 faculty emails per upload.');return {rows:normalized,errors};
+}
+export function parseFacultyEmails(text:string):FacultyPreview{if(text.length>256*1024)return {rows:[],errors:['Use a list smaller than 256 KB.']};return validateFacultyRows(text.trim().split(/[\s,;]+/).filter(Boolean).map(email=>({email})));}
+export function parseFacultyCsv(input:string):FacultyPreview{
+ const fail=(message:string):FacultyPreview=>({rows:[],errors:[message]});if(input.length>256*1024)return fail('Use a CSV smaller than 256 KB.');const source=input.replace(/^\uFEFF/,'');const records:string[][]=[];let row:string[]=[],field='',quoted=false,closed=false;
+ for(let i=0;i<source.length;i++){const c=source[i];if(quoted){if(c==='"'){if(source[i+1]==='"'){field+='"';i++;}else{quoted=false;closed=true;}}else field+=c;}else if(c==='"'){if(field||closed)return fail('A quoted field is malformed. Save the file again as CSV UTF-8.');quoted=true;}else if(c===','||c==='\n'||c==='\r'){row.push(field);field='';closed=false;if(c!==','){records.push(row);row=[];if(c==='\r'&&source[i+1]==='\n')i++;}}else{if(closed)return fail('Unexpected text after a quoted field.');field+=c;}}
+ if(quoted)return fail('A quoted field is missing its closing quote.');if(field||row.length||closed){row.push(field);records.push(row);}const header=records.shift()?.map(v=>v.trim().toLowerCase());if(!header||header.filter(h=>h==='email').length!==1||header.filter(h=>h==='name').length>1||header.some(h=>!['email','name'].includes(h)))return fail('Use email and optional name columns, with one header per column.');
+ const errors:string[]=[],rows:FacultyRow[]=[];records.forEach((r,i)=>{if(r.every(v=>!v.trim()))return;if(r.length!==header.length){errors.push(`CSV row ${i+2}: expected ${header.length} columns.`);return;}rows.push({email:r[header.indexOf('email')],...(header.includes('name')?{name:r[header.indexOf('name')]}:{})});});const parsed=validateFacultyRows(rows);return {...parsed,errors:[...errors,...parsed.errors]};
+}

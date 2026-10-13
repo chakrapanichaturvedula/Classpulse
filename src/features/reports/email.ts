@@ -1,0 +1,3 @@
+export type EmailRecipient={student_id:string;name:string;code:string;email:string|null;fingerprint:string|null;status:'ready'|'queued'|'sending'|'accepted'|'failed'|'unknown'|'ineligible';reason:string|null};
+export function readyRecipients(rows:EmailRecipient[]){return rows.filter(row=>!!row.fingerprint&&!!row.email&&['ready','queued','failed'].includes(row.status));}
+export function emailStatus(row:EmailRecipient){return row.status==='ineligible'?row.reason??'Not ready':row.status==='accepted'?'Accepted by email service':row.status==='unknown'?'Needs review before retry':row.status==='sending'?'Sending / awaiting review':row.status==='failed'?'Failed - can retry':row.status==='queued'?'Queued':'Ready';}

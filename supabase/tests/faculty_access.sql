@@ -1,0 +1,77 @@
+begin;
+do $test$
+declare a uuid:=gen_random_uuid();b uuid:=gen_random_uuid();c uuid:=gen_random_uuid();d uuid:=gen_random_uuid();ra uuid;rb uuid;room uuid;student uuid;quiz jsonb;s jsonb;token jsonb;denied boolean;ea text:=a::text||'@classpulse.invalid';eb text:=b::text||'@classpulse.invalid';ec text:=c::text||'@classpulse.invalid';ed text:=d::text||'@classpulse.invalid';imported text:=gen_random_uuid()::text||'@classpulse.invalid';invalid_batch text:=gen_random_uuid()::text||'@classpulse.invalid';has_email boolean:=to_regclass('private.report_email_jobs') is not null;
+begin
+ begin
+ insert into private.faculty_approvals(email,name) values(ea,'Admin fixture'),(eb,'Faculty fixture'),(ed,'Unconfirmed fixture');
+ insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data,is_anonymous) values(a,ea,now(),'{"full_name":"Admin fixture"}',false),(b,eb,now(),'{"full_name":"Faculty fixture","role":"admin"}',false),(d,ed,null,'{"full_name":"Unconfirmed fixture"}',false);
+ insert into private.classpulse_admins(user_id) values(a);
+ execute 'set local role authenticated';perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',false)::text,true);
+ if public.classpulse_access_status()->>'is_admin'<>'true' then raise exception 'FAIL: admin status';end if;
+ perform public.classpulse_admin_approve_faculty(jsonb_build_array(jsonb_build_object('email','  '||upper(imported)||'  ','name','Imported faculty')));
+ if not exists(select 1 from jsonb_array_elements(public.classpulse_admin_faculty_list()) v where v->>'email'=imported and v->>'registered'='false') then raise exception 'FAIL: normalized import or signup status';end if;
+ denied:=false;begin perform public.classpulse_admin_approve_faculty(jsonb_build_array(jsonb_build_object('email',invalid_batch),jsonb_build_object('email','invalid')));exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: invalid approval accepted';end if;
+ if exists(select 1 from jsonb_array_elements(public.classpulse_admin_faculty_list()) v where v->>'email'=invalid_batch) then raise exception 'FAIL: import partially committed';end if;
+ denied:=false;begin perform public.classpulse_admin_approve_faculty(jsonb_build_array(jsonb_build_object('email',imported),jsonb_build_object('email',upper(imported))));exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: duplicate approval accepted';end if;
+ denied:=false;begin perform public.classpulse_admin_approve_faculty(jsonb_build_array(jsonb_build_object('email',imported,'role','admin')));exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: role metadata accepted';end if;
+ denied:=false;begin perform public.classpulse_admin_remove_faculty(ea);exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: admin removed own approval';end if;
+ insert into public.rosters(teacher_id,name) values(a,'Admin fixture') returning id into ra;
+ execute 'reset role';execute 'set local role supabase_auth_admin';
+ if public.classpulse_before_user_created(jsonb_build_object('user',jsonb_build_object('email',upper(imported),'is_anonymous',false)))<>'{}'::jsonb then raise exception 'FAIL: approved signup hook denied';end if;
+ if not(public.classpulse_before_user_created(jsonb_build_object('user',jsonb_build_object('email',ec,'is_anonymous',false,'user_metadata',jsonb_build_object('role','admin'))))?'error') then raise exception 'FAIL: unapproved signup hook allowed';end if;
+ if not(public.classpulse_before_user_created('{"user":{"is_anonymous":true}}')?'error') then raise exception 'FAIL: anonymous Auth signup allowed';end if;
+ execute 'reset role';denied:=false;begin insert into auth.users(id,email,email_confirmed_at,is_anonymous) values(c,ec,now(),false);exception when raise_exception then denied:=true;end;if not denied or exists(select 1 from auth.users where id=c) then raise exception 'FAIL: trigger permitted unapproved account';end if;
+ denied:=false;begin insert into auth.users(id,is_anonymous) values(c,true);exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: anonymous Auth account created without hook';end if;
+ denied:=false;begin update auth.users set email=ec where id=b;exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: changed email bypassed approval';end if;
+ execute 'set local role authenticated';perform set_config('request.jwt.claims',jsonb_build_object('sub',d,'is_anonymous',false,'email_confirmed_at',now())::text,true);
+ if public.classpulse_faculty_allowed() then raise exception 'FAIL: client confirmation bypass';end if;
+ denied:=false;begin insert into public.rosters(teacher_id,name) values(d,'Unconfirmed');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'FAIL: unconfirmed account created class';end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'is_anonymous',false,'user_metadata',jsonb_build_object('role','admin'))::text,true);
+ if public.classpulse_access_status()->>'is_admin'<>'false' then raise exception 'FAIL: spoofed admin metadata';end if;
+ denied:=false;begin perform public.classpulse_admin_faculty_list();exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: faculty reads approved list';end if;
+ denied:=false;begin perform public.classpulse_admin_approve_faculty(jsonb_build_array(jsonb_build_object('email',ec)));exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: faculty approves users';end if;
+ denied:=false;begin select 1 from private.classpulse_admins limit 1;exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'FAIL: browser reads admin roles';end if;
+ if exists(select 1 from public.rosters where id=ra) then raise exception 'FAIL: admin role leaks other faculty classes';end if;
+ insert into public.rosters(teacher_id,name) values(b,'FAC-'||upper(substr(b::text,1,8))) returning id into rb;
+ perform public.classpulse_import_roster(rb,'[{"id":"001","name":"Student fixture","emailid":"student@example.test"}]');
+ perform public.classpulse_save_room(rb,'FAC-'||upper(substr(b::text,1,8)));select id into room from public.rooms where roster_id=rb;
+ quiz:=public.classpulse_save_quiz(null,null,'Faculty fixture quiz','[{"type":"multiple_choice","prompt":"Choose","points":1,"options":["A","B"],"correct_position":1,"accepted_answers":[],"manual_grading":false}]',null,null);
+ s:=public.classpulse_launch_quiz(room,(quiz->>'quiz_id')::uuid,(quiz->>'version_id')::uuid,(quiz->>'revision')::integer);
+ execute 'reset role';execute 'set local role anon';perform set_config('request.jwt.claims','{}',true);
+ token:=public.classpulse_student_join('FAC-'||upper(substr(b::text,1,8)),'001');if token->>'token' is null then raise exception 'FAIL: student room entry blocked';end if;
+ denied:=false;begin perform public.classpulse_admin_faculty_list();exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'FAIL: student reads faculty list';end if;
+ denied:=false;begin perform public.classpulse_before_user_created('{}');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'FAIL: browser calls auth hook';end if;
+ execute 'reset role';
+ if has_email then
+  select student_id into student from public.session_roster_students where session_id=(s->>'id')::uuid;
+  insert into private.report_email_jobs(teacher_id,session_id,student_id,recipient,fingerprint,script_snapshot,status) values(b,(s->>'id')::uuid,student,'student@example.test','faculty-fixture','{}','sending');
+ end if;
+ execute 'set local role authenticated';perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',false)::text,true);
+ if has_email then
+  denied:=false;begin perform public.classpulse_admin_remove_faculty(eb);exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: revoked during in-flight email';end if;
+  execute 'reset role';update private.report_email_jobs set status='queued' where teacher_id=b;execute 'set local role authenticated';
+ end if;
+ perform public.classpulse_admin_remove_faculty(eb);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'is_anonymous',false)::text,true);
+ if public.classpulse_faculty_allowed() or exists(select 1 from public.rosters where id=rb) then raise exception 'FAIL: stale session retains table access';end if;
+ denied:=false;begin perform public.classpulse_get_quiz((quiz->>'quiz_id')::uuid);exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: removed faculty reads quiz RPC';end if;
+ denied:=false;begin perform public.classpulse_launch_quick(room,'multiple_choice',2,'Prompt','key');exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: removed faculty launches RPC';end if;
+ execute 'reset role';
+ if (select status from public.quiz_sessions where id=(s->>'id')::uuid)<>'ended' or not exists(select 1 from public.quizzes where id=(quiz->>'quiz_id')::uuid) then raise exception 'FAIL: revocation did not end sessions or deleted quiz';end if;
+ if has_email then
+  if public.classpulse_claim_report_email((select id from private.report_email_jobs where teacher_id=b),100)?'claimed' then raise exception 'FAIL: removed faculty email job claimed';end if;
+ end if;
+ execute 'set local role authenticated';perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',false)::text,true);
+ perform public.classpulse_admin_approve_faculty(jsonb_build_array(jsonb_build_object('email',eb)));
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'is_anonymous',false)::text,true);
+ if not public.classpulse_faculty_allowed() or public.classpulse_get_quiz((quiz->>'quiz_id')::uuid)->>'quiz_id'<>quiz->>'quiz_id' then raise exception 'FAIL: restored approval lost workspace';end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',true)::text,true);
+ denied:=false;begin perform public.classpulse_admin_faculty_list();exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: anonymous JWT reads admin list';end if;
+ execute 'reset role';
+ if exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=any(array['classpulse_import_roster','classpulse_get_quiz','classpulse_save_quiz','classpulse_publish_quiz','classpulse_launch_quiz','classpulse_end_session','classpulse_start_session','classpulse_launch_quick','classpulse_live_results','classpulse_live_results_v1','classpulse_save_room','classpulse_set_report_deleted','classpulse_student_script','classpulse_short_answer_marks','classpulse_grade_short_answer','classpulse_grade_question_batch','classpulse_answer_keys','classpulse_preview_key_correction','classpulse_apply_key_correction','classpulse_email_recipients','classpulse_prepare_report_email']) and strpos(pg_get_functiondef(p.oid),'perform public.classpulse_require_faculty();')=0) then raise exception 'FAIL: teacher RPC missing approval check';end if;
+ raise exception using errcode='CP001',message='Rollback fixtures';exception when sqlstate 'CP001' then null;
+ end;
+ if exists(select 1 from auth.users where id in(a,b,c,d)) or exists(select 1 from private.faculty_approvals where email in(ea,eb,ec,ed,imported,invalid_batch)) then raise exception 'FAIL: fixtures remain';end if;
+end $test$;
+rollback;
+select 'PASS: faculty approval, administrator access, signup restriction, revocation and student entry verified; fixtures rolled back' as result;

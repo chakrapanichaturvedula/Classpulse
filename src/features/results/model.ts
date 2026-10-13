@@ -1,7 +1,7 @@
 export type ResultQuestion={id:string;position:number;prompt:string;type:string;points:number;options:{position:number;label:string}[]};
 export type ResultStudent={id:string;name:string;code:string;joined:boolean};
-export type ResultResponse={student_id:string;question_id:string;option_position:number|null;answer_text:string|null;is_correct:boolean|null;awarded_points:number|null};
-export type ResultDocument={activity_type?:'quiz'|'quick_mcq'|'quick_tf'|'word_cloud';session_id:string;quiz_title:string;class_name:string;room_name:string;status:string;questions:ResultQuestion[];students:ResultStudent[];responses:ResultResponse[]};
+export type ResultResponse={teacher_comment?:string|null;student_id:string;question_id:string;option_position:number|null;answer_text:string|null;is_correct:boolean|null;awarded_points:number|null};
+export type ResultDocument={key_corrected_at?:string|null;activity_type?:'quiz'|'quick_mcq'|'quick_tf'|'word_cloud';session_id:string;quiz_title:string;class_name:string;room_name:string;status:string;questions:ResultQuestion[];students:ResultStudent[];responses:ResultResponse[]};
 export function summarize(doc:ResultDocument){
  const byStudent=new Map<string,Map<string,ResultResponse>>();
  for(const response of doc.responses){let answers=byStudent.get(response.student_id);if(!answers){answers=new Map();byStudent.set(response.student_id,answers);}answers.set(response.question_id,response);}

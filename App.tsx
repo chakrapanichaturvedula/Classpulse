@@ -3,6 +3,7 @@ import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, Vie
 import { StatusBar } from 'expo-status-bar';
 import { demoQuizzes, demoRoom, demoStudents } from './src/data/demo';
 import { TeacherToolbar, type WorkspaceTab } from './src/components/TeacherToolbar';
+import {FacultyAdmin} from './src/features/admin/FacultyAdmin';
 import { TeacherAuthScreen } from './src/features/auth/TeacherAuthScreen';
 import { useTeacherAuth } from './src/features/auth/useTeacherAuth';
 import { supabase } from './src/lib/supabase';
@@ -37,8 +38,8 @@ export default function App() {
   const [selectedClass, setSelectedClass] = useState('');
   const [quizDirty, setQuizDirty] = useState(false);
   const [quizEpoch, setQuizEpoch] = useState(0);
-  const [pendingExit, setPendingExit] = useState<Page | 'classes' | 'launch' | 'results' | 'reports' | 'signout' | null>(null);
-  useEffect(() => { setQuizDirty(false); setPendingExit(null); setSelectedClass(''); setResultsSession(''); }, [auth.profile?.id]);
+  const [pendingExit, setPendingExit] = useState<Page | 'classes' | 'launch' | 'results' | 'reports' | 'admin' | 'signout' | null>(null);
+  useEffect(() => { setQuizDirty(false); setPendingExit(null); setWorkspaceTab('launch'); setSelectedClass(''); setResultsSession(''); }, [auth.profile?.id]);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState('');
   async function signOut(force = false) {
@@ -56,7 +57,7 @@ export default function App() {
   function discardAndContinue() {
     const action = pendingExit; setPendingExit(null); setQuizDirty(false); setQuizEpoch(value => value + 1);
     if (action === 'signout') void signOut(true);
-    else if (action === 'classes' || action === 'launch' || action === 'results' || action === 'reports') setWorkspaceTab(action);
+    else if (action === 'classes' || action === 'launch' || action === 'results' || action === 'reports' || action === 'admin') setWorkspaceTab(action);
     else if (action) { setPage(action); setPreview(null); }
   }
 
@@ -64,7 +65,7 @@ export default function App() {
   function selectTab(next:WorkspaceTab){if(quizDirty&&next!=='quizzes')setPendingExit(next);else setWorkspaceTab(next);}
   return <View style={s.root}>
     <StatusBar style="dark" />
-    {inWorkspace&&<TeacherToolbar teacherId={auth.profile!.id} teacherName={auth.profile!.full_name} tab={workspaceTab} selectedClass={selectedClass} onClassSelect={setSelectedClass} onTab={selectTab} onHome={()=>navigate('home')} onSignOut={()=>void signOut()} signingOut={signingOut}/> }
+    {inWorkspace&&<TeacherToolbar teacherId={auth.profile!.id} teacherName={auth.profile!.full_name} isAdmin={!!auth.profile!.is_admin} tab={workspaceTab} selectedClass={selectedClass} onClassSelect={setSelectedClass} onTab={selectTab} onHome={()=>navigate('home')} onSignOut={()=>void signOut()} signingOut={signingOut}/> }
     <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
       <View style={[s.container, { paddingHorizontal: wide ? 32 : 18 }]}>
         {!inWorkspace&&<View style={s.header}>
@@ -83,6 +84,7 @@ export default function App() {
           <View style={{ display: workspaceTab === 'launch' ? 'flex' : 'none' }}><LaunchManager key={auth.profile.id} teacherId={auth.profile.id} active={workspaceTab === 'launch'} selectedRosterId={selectedClass} onClassSelect={setSelectedClass} onResults={id=>{setResultsSession(id);setWorkspaceTab('results');}} /></View>
           <View style={{display:workspaceTab==='results'?'flex':'none'}}><LiveResults key={auth.profile.id} teacherId={auth.profile.id} active={workspaceTab==='results'} requestedSession={resultsSession}/></View>
           <View style={{display:workspaceTab==='reports'?'flex':'none'}}><Reports teacherId={auth.profile.id} active={workspaceTab==='reports'} selectedRosterId={selectedClass}/></View>
+          {auth.profile.is_admin&&<View style={{display:workspaceTab==='admin'?'flex':'none'}}><FacultyAdmin active={workspaceTab==='admin'}/></View>}
           {!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}
         </> : auth.session ? <Card style={{ gap: 16 }}><Text style={s.cardTitle}>We could not open your workspace.</Text><Text accessibilityRole="alert" style={s.body}>{auth.profileError || 'Your teacher profile has not been verified.'}</Text><Button title="Retry workspace" onPress={auth.retryProfile} /><Button title={signingOut ? 'Signing out…' : 'Sign out'} secondary onPress={() => void signOut()} />{!!signOutError && <Text accessibilityRole="alert" style={s.error}>{signOutError}</Text>}</Card> : <TeacherAuthScreen onPreview={() => navigate('teacher')} />)}
 

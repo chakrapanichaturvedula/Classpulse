@@ -1,0 +1,7 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {quizPdfDefinition,quizPdfFilename} from '../src/features/quizzes/pdf.ts';
+const quiz={title:'Finance ₹ & <b>test</b>',version_number:2,questions:[{type:'multiple_choice',prompt:'Choose an asset',points:1.25,options:['Cash','Loan'],correct_position:1,accepted_answers:[],manual_grading:false},{type:'short_answer',prompt:'Explain',points:2.5,options:[],correct_position:null,accepted_answers:['PRIVATE_ALIAS'],manual_grading:false},{type:'short_answer',prompt:'Discuss',points:0,options:[],correct_position:null,accepted_answers:[],manual_grading:true}]};
+test('question paper contains no answer annotations or accepted aliases',()=>{const text=JSON.stringify(quizPdfDefinition(quiz,false));assert.ok(!text.includes('PRIVATE_ALIAS'));assert.ok(!text.includes('Correct answer'));assert.ok(!text.includes('Teacher assessment'));assert.ok(text.includes('Student ID'));assert.ok(text.includes('Total marks: 3.75'));});
+test('key includes correct choice, aliases and manually graded questions without student blanks',()=>{const text=JSON.stringify(quizPdfDefinition(quiz,true));assert.ok(text.includes('Correct answer: A. Cash'));assert.ok(text.includes('PRIVATE_ALIAS'));assert.ok(text.includes('Teacher assessment required'));assert.ok(!text.includes('Student ID:'));});
+test('PDF filenames are safe and distinguish the two versions',()=>{assert.equal(quizPdfFilename('../Quiz:TVM?',false),'Quiz-TVM-question-paper.pdf');assert.equal(quizPdfFilename('₹',true),'quiz-answer-key.pdf');});

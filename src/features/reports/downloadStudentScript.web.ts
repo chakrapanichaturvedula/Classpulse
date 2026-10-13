@@ -1,0 +1,7 @@
+import {studentScriptDefinition,scriptFilename,type StudentScriptDocument} from './studentScript';
+import type {BulkScriptOptions} from './bulkScripts';
+async function pdfEngine(){const [{default:pdfMake},{default:fonts}]=await Promise.all([import('pdfmake/build/pdfmake'),import('pdfmake/build/vfs_fonts')]);pdfMake.vfs=fonts as unknown as Record<string,string>;return pdfMake;}
+async function scriptBytes(doc:StudentScriptDocument):Promise<Uint8Array>{const definition=studentScriptDefinition(doc),pdfMake=await pdfEngine();return new Promise(resolve=>pdfMake.createPdf(definition).getBuffer(buffer=>resolve(new Uint8Array(buffer))));}
+function downloadBlob(blob:Blob,filename:string){const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
+export async function downloadStudentScript(doc:StudentScriptDocument):Promise<void>{const bytes=await scriptBytes(doc);downloadBlob(new Blob([bytes as BlobPart],{type:'application/pdf'}),scriptFilename(doc));}
+export async function downloadBulkScripts(title:string,options:Omit<BulkScriptOptions,'render'>):Promise<void>{const {bulkScriptArchive,bulkScriptFilename}=await import('./bulkScripts');const bytes=await bulkScriptArchive({...options,render:scriptBytes});if(options.cancelled())throw new Error('Bulk download cancelled. No ZIP was downloaded.');downloadBlob(new Blob([bytes as BlobPart],{type:'application/zip'}),bulkScriptFilename(title,options.sessionId));}

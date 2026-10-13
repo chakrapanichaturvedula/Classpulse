@@ -1,9 +1,9 @@
 import React,{useEffect,useState} from 'react';
 import {Modal,Pressable,ScrollView,StyleSheet,Text,View,useWindowDimensions} from 'react-native';
 import {supabase} from '../lib/supabase';
-export type WorkspaceTab='launch'|'quizzes'|'classes'|'results'|'reports';
+export type WorkspaceTab='launch'|'quizzes'|'classes'|'results'|'reports'|'admin';
 type ClassRoom={id:string;name:string;room:string|null};
-export function TeacherToolbar({teacherId,teacherName,tab,selectedClass,onClassSelect,onTab,onHome,onSignOut,signingOut}:{teacherId:string;teacherName:string;tab:WorkspaceTab;selectedClass:string;onClassSelect:(id:string)=>void;onTab:(tab:WorkspaceTab)=>void;onHome:()=>void;onSignOut:()=>void;signingOut:boolean}){
+export function TeacherToolbar({teacherId,teacherName,tab,selectedClass,onClassSelect,onTab,onHome,onSignOut,signingOut,isAdmin=false}:{teacherId:string;teacherName:string;tab:WorkspaceTab;selectedClass:string;onClassSelect:(id:string)=>void;onTab:(tab:WorkspaceTab)=>void;onHome:()=>void;onSignOut:()=>void;signingOut:boolean;isAdmin?:boolean}){
  const {width}=useWindowDimensions();const wide=width>=900;
  const [classes,setClasses]=useState<ClassRoom[]>([]),[open,setOpen]=useState(false),[error,setError]=useState('');
  useEffect(()=>{let cancelled=false;
@@ -17,7 +17,7 @@ export function TeacherToolbar({teacherId,teacherName,tab,selectedClass,onClassS
  const selected=classes.find(c=>c.id===selectedClass);
  const initials=teacherName.trim().split(/\s+/).slice(0,2).map(n=>n[0]).join('').toUpperCase();
  const navigation=<ScrollView style={wide?{flex:1}:undefined} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabs}>
-   {([['launch','Launch'],['quizzes','Library'],['classes','Rooms'],['reports','Reports'],['results','Live Results']] as const).map(([id,label])=><Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:tab===id}} onPress={()=>onTab(id)} style={[s.tab,tab===id&&s.active]}><Text style={[s.tabText,tab===id&&{color:'#0088B0'}]}>{label}</Text></Pressable>)}
+   {([['launch','Launch'],['quizzes','Library'],['classes','Rooms'],['reports','Reports'],['results','Live Results'],...(isAdmin?[['admin','Admin'] as const]:[])] as const).map(([id,label])=><Pressable key={id} accessibilityRole="tab" accessibilityState={{selected:tab===id}} onPress={()=>onTab(id)} style={[s.tab,tab===id&&s.active]}><Text style={[s.tabText,tab===id&&{color:'#0088B0'}]}>{label}</Text></Pressable>)}
   </ScrollView>;
  return <View style={s.bar}>
   <View style={s.top}>

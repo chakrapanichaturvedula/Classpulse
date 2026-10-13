@@ -35,7 +35,7 @@ export function TeacherAuthScreen({ onPreview }: { onPreview: () => void }) {
           options: { data: { full_name: name.trim() }, emailRedirectTo: Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : undefined },
         });
         if (authError) {
-          setError(authError.status === 429 ? 'Too many attempts. Please wait before trying again.' : 'Could not create the account. Check your details, connection, and email service setup.');
+          setError(authError.message?.toLowerCase().includes('approved faculty') ? 'This email is not approved for faculty registration. Contact the Classpulse administrator.' : authError.status === 429 ? 'Too many attempts. Please wait before trying again.' : 'Could not create the account. Check your details, connection, and email service setup.');
         } else {
           setPassword(''); setConfirmation('');
           setMessage('If this address can be registered, check your email for a confirmation link. After confirming, return here and sign in.');
@@ -47,7 +47,7 @@ export function TeacherAuthScreen({ onPreview }: { onPreview: () => void }) {
   return <View style={s.panel}>
     <Text style={s.eyebrow}>YOUR TEACHING WORKSPACE</Text>
     <Text accessibilityRole="header" style={s.title}>{mode === 'login' ? 'Welcome back.' : 'Make room for your classes.'}</Text>
-    <Text style={s.body}>Your account will keep your named classes, quiz folders, and results together.</Text>
+    <Text style={s.body}>Teacher registration is restricted to administrator-approved faculty emails. Your account keeps your classes, quizzes and results together.</Text>
     {!isSupabaseConfigured && <View style={s.notice}><Text style={s.body}>Teacher accounts are not connected yet. We’re setting up Supabase before you can create an account or sign in.</Text></View>}
     <View style={s.row}>{(['login', 'signup'] as const).map(value => <Pressable key={value} accessibilityRole="tab" accessibilityState={{ selected: mode === value, disabled: busy }} disabled={busy} onPress={() => { setMode(value); setError(''); setMessage(''); setPassword(''); setConfirmation(''); }} style={[s.tab, mode === value && s.activeTab]}><Text style={{ color: mode === value ? '#FFFFFF' : '#263B4B', fontWeight: '600' }}>{value === 'login' ? 'Sign in' : 'Create account'}</Text></Pressable>)}</View>
     {mode === 'signup' && <><Text style={s.label}>Full Name</Text><TextInput accessibilityLabel="Teacher full name" style={s.input} value={name} onChangeText={setName} placeholder="Your full name" placeholderTextColor="#667582" autoComplete="name" maxLength={200} editable={!busy} /></>}
