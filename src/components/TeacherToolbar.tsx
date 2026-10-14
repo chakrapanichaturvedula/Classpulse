@@ -1,11 +1,11 @@
 import React,{useEffect,useState} from 'react';
-import {Modal,Pressable,ScrollView,StyleSheet,Text,View,useWindowDimensions} from 'react-native';
+import {Modal,Pressable,ScrollView,StyleSheet,Text,TextInput,View,useWindowDimensions} from 'react-native';
 import {supabase} from '../lib/supabase';
 export type WorkspaceTab='launch'|'quizzes'|'classes'|'results'|'reports'|'admin';
 type ClassRoom={id:string;name:string;room:string|null};
 export function TeacherToolbar({teacherId,teacherName,tab,selectedClass,onClassSelect,onTab,onHome,onSignOut,signingOut,isAdmin=false}:{teacherId:string;teacherName:string;tab:WorkspaceTab;selectedClass:string;onClassSelect:(id:string)=>void;onTab:(tab:WorkspaceTab)=>void;onHome:()=>void;onSignOut:()=>void;signingOut:boolean;isAdmin?:boolean}){
  const {width}=useWindowDimensions();const wide=width>=900;
- const [classes,setClasses]=useState<ClassRoom[]>([]),[open,setOpen]=useState(false),[error,setError]=useState('');
+ const [classes,setClasses]=useState<ClassRoom[]>([]),[open,setOpen]=useState(false),[error,setError]=useState(''),[search,setSearch]=useState('');
  useEffect(()=>{let cancelled=false;
   async function load(){try{
    const [rosters,rooms]=await Promise.all([supabase!.from('rosters').select('id,name').eq('teacher_id',teacherId).order('name'),supabase!.from('rooms').select('roster_id,room_name').eq('teacher_id',teacherId)]);
@@ -23,14 +23,14 @@ export function TeacherToolbar({teacherId,teacherName,tab,selectedClass,onClassS
   <View style={s.top}>
    <Pressable accessibilityRole="button" accessibilityLabel="Classpulse home" onPress={onHome} style={s.brand}><Text style={s.mark}>cp</Text>{width>=600&&<Text style={s.brandName}>Classpulse</Text>}</Pressable>
    {wide&&navigation}
-   <View style={s.account}><Pressable accessibilityRole="button" accessibilityLabel="Select classroom room" onPress={()=>setOpen(true)} style={s.room}><Text numberOfLines={1} style={s.roomText}>{selected?.room??selected?.name??'Select room'}  ▾</Text></Pressable><View accessibilityLabel={`Teacher: ${teacherName}`} style={s.avatar}><Text style={s.avatarText}>{initials}</Text></View><Pressable accessibilityRole="button" disabled={signingOut} onPress={onSignOut}><Text style={s.signOut}>{signingOut?'Signing out…':'Sign out'}</Text></Pressable></View>
+   <View style={s.account}><Pressable accessibilityRole="button" accessibilityLabel="Select classroom room" onPress={()=>{setSearch('');setOpen(true);}} style={s.room}><Text numberOfLines={1} style={s.roomText}>{selected?.room??selected?.name??'Select room'}  ▾</Text></Pressable><View accessibilityLabel={`Teacher: ${teacherName}`} style={s.avatar}><Text style={s.avatarText}>{initials}</Text></View><Pressable accessibilityRole="button" disabled={signingOut} onPress={onSignOut}><Text style={s.signOut}>{signingOut?'Signing out…':'Sign out'}</Text></Pressable></View>
   </View>
   {!wide&&navigation}
   <Modal visible={open} transparent animationType="fade" onRequestClose={()=>setOpen(false)}>
    <View style={s.overlay}><View accessibilityViewIsModal style={s.dialog}><View style={s.dialogHeader}><Text style={s.heading}>Select room</Text><Pressable accessibilityRole="button" accessibilityLabel="Close room selection" onPress={()=>setOpen(false)}><Text style={s.close}>×</Text></Pressable></View>
     {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-    <ScrollView style={{maxHeight:360}}>{classes.map(c=><Pressable key={c.id} accessibilityRole="button" accessibilityState={{selected:c.id===selectedClass}} onPress={()=>{onClassSelect(c.id);setOpen(false);}} style={[s.roomRow,c.id===selectedClass&&{backgroundColor:'#F0F7FA'}]}><Text style={s.roomText}>{c.room??'Room not created'}</Text></Pressable>)}</ScrollView>
-    {!classes.length&&!error&&<Text style={s.small}>Add a room and upload its roster in Rooms.</Text>}
+    <TextInput accessibilityLabel="Search classroom rooms" placeholder="Search rooms" placeholderTextColor="#667582" value={search} onChangeText={setSearch} style={{borderWidth:1,borderColor:'#CDD6DE',borderRadius:4,padding:11,fontSize:16,color:'#263B4B'}}/><ScrollView style={{maxHeight:360}}>{classes.filter(c=>(c.room??c.name).toLowerCase().includes(search.trim().toLowerCase())).map(c=><Pressable key={c.id} accessibilityRole="button" accessibilityState={{selected:c.id===selectedClass}} onPress={()=>{onClassSelect(c.id);setOpen(false);}} style={[s.roomRow,c.id===selectedClass&&{backgroundColor:'#F0F7FA'}]}><Text style={s.roomText}>{c.room??'Room not created'}</Text></Pressable>)}</ScrollView>
+    {!!classes.length&&!classes.some(c=>(c.room??c.name).toLowerCase().includes(search.trim().toLowerCase()))&&<Text style={s.small}>No rooms match your search.</Text>}{!classes.length&&!error&&<Text style={s.small}>Add a room and upload its roster in Rooms.</Text>}
    </View></View>
   </Modal>
  </View>;

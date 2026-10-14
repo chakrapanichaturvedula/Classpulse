@@ -92,7 +92,7 @@ export default function App() {
           <View style={{gap:12,paddingVertical:24}}><Text accessibilityRole="header" style={s.title}>Classroom quizzes, made simple.</Text><Text style={s.body}>Teachers launch a quiz. Students join with their room name and Student ID.</Text></View>
           <View style={[s.columns,wide&&{flexDirection:'row'}]}>
            <Card style={{flex:1,gap:16}}><Text style={s.cardTitle}>Teacher</Text><Text style={s.body}>Prepare quizzes and see your class’s responses.</Text><Button title={auth.profile?'Open workspace':'Teacher sign in'} onPress={()=>navigate('account')}/></Card>
-           <Card style={{flex:1,gap:16}}><Text style={s.cardTitle}>Student</Text><Text style={s.body}>Join the room shared by your teacher.</Text><Button title="Student entry" secondary onPress={()=>navigate('student')}/></Card>
+           <Card style={{flex:1,gap:16}}><Text style={s.cardTitle}>Student</Text><Text style={s.body}>Enter your room name and Student ID. No password needed.</Text><Button title="Join Classroom" secondary onPress={()=>navigate('student')}/></Card>
           </View>
         </>}
 
@@ -102,7 +102,7 @@ export default function App() {
           {tab === 'Overview' && <>
             <View style={[s.columns, wide && { flexDirection: 'row' }]}>{[['3', 'Sample quizzes'], ['3', 'Fictional students'], ['150', 'Planned class limit']].map(([value, label]) => <Card key={label} style={{ flex: 1, gap: 8 }}><Text style={s.stat}>{value}</Text><Text style={s.body}>{label}</Text></Card>)}</View>
             <View style={[s.columns, wide && { flexDirection: 'row' }]}>
-              <Card style={{ flex: 1, gap: 17 }}><Tag>Sample room</Tag><Text style={s.cardTitle}>Your room: {demoRoom}</Text><Text style={s.body}>Students will enter your room name and their student ID. Live session controls arrive in a later step.</Text><Button title="Try student entry →" onPress={() => navigate('student')} /></Card>
+              <Card style={{ flex: 1, gap: 17 }}><Tag>Sample room</Tag><Text style={s.cardTitle}>Your room: {demoRoom}</Text><Text style={s.body}>Students will enter your room name and their student ID. Live session controls arrive in a later step.</Text><Button title="Join Classroom →" onPress={() => navigate('student')} /></Card>
               <Card style={{ flex: 1, gap: 17 }}><Text style={s.eyebrow}>START WITH A SMALL CHECK-IN</Text><Text style={s.cardTitle}>Financial foundations</Text><Text style={s.body}>5 questions · Multiple choice, true/false, and short answer.</Text><Button title="Browse sample quizzes →" secondary onPress={() => setTab('Quizzes')} /></Card>
             </View>
           </>}

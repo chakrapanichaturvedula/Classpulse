@@ -1,0 +1,46 @@
+begin;
+do $test$
+declare a uuid:=gen_random_uuid();b uuid:=gen_random_uuid();c jsonb;r uuid;s jsonb;entry jsonb;feed jsonb;before_roster jsonb;result jsonb;denied boolean;
+ label text:='DELETE-'||upper(substr(md5(random()::text),1,10));
+begin
+ begin
+ insert into private.faculty_approvals(email) values(a::text||'@classpulse.invalid'),(b::text||'@classpulse.invalid');
+ insert into auth.users(id,email,raw_user_meta_data,is_anonymous,email_confirmed_at) values(a,a::text||'@classpulse.invalid','{"full_name":"Delete A"}',false,now()),(b,b::text||'@classpulse.invalid','{"full_name":"Delete B"}',false,now());
+ execute 'set local role authenticated';perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',false)::text,true);
+ c:=public.classpulse_save_room(null,label);select id into r from public.rooms where roster_id=(c->>'id')::uuid;
+ perform public.classpulse_add_students((c->>'id')::uuid,'[{"id":"001","name":"Saved Full Name","emailid":"student@classpulse.invalid"}]');
+ s:=public.classpulse_launch_quick(r,'quick_tf',2,'Preserved question','delete-fixture-first');
+ denied:=false;begin perform public.classpulse_set_room_deleted((c->>'id')::uuid,true);exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: active room deleted';end if;
+ execute 'reset role';execute 'set local role anon';perform set_config('request.jwt.claims','{}',true);
+ entry:=public.classpulse_student_join(label,'001');feed:=public.classpulse_student_question((entry->>'token')::uuid);perform public.classpulse_submit_answer((entry->>'token')::uuid,(feed->'question'->>'id')::uuid,1,null);
+ execute 'reset role';execute 'set local role authenticated';perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',false)::text,true);
+ perform public.classpulse_end_session((s->>'id')::uuid);result:=public.classpulse_live_results((s->>'id')::uuid);
+ select jsonb_agg(to_jsonb(st)) into before_roster from public.session_roster_students st where session_id=(s->>'id')::uuid;
+ perform public.classpulse_set_room_deleted((c->>'id')::uuid,true);perform public.classpulse_set_room_deleted((c->>'id')::uuid,true);
+ if exists(select 1 from public.rosters where id=(c->>'id')::uuid) or exists(select 1 from jsonb_array_elements(public.classpulse_room_list()) x where x->>'id'=c->>'id') then raise exception 'FAIL: deleted room visible';end if;
+ if not exists(select 1 from jsonb_array_elements(public.classpulse_deleted_rooms()) x where x->>'id'=c->>'id' and (x->>'student_count')::int=1) then raise exception 'FAIL: deleted list';end if;
+ if public.classpulse_live_results((s->>'id')::uuid) is distinct from result then raise exception 'FAIL: saved results changed';end if;
+ if (select jsonb_agg(to_jsonb(st)) from public.session_roster_students st where session_id=(s->>'id')::uuid) is distinct from before_roster then raise exception 'FAIL: snapshot changed';end if;
+ denied:=false;begin perform public.classpulse_launch_quick(r,'quick_tf',2,'Blocked','delete-fixture-second');exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: deleted room launched';end if;
+ denied:=false;begin perform public.classpulse_add_students((c->>'id')::uuid,'[{"id":"002","name":"Blocked","emailid":""}]');exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: deleted roster edited';end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'is_anonymous',false)::text,true);
+ if jsonb_array_length(public.classpulse_deleted_rooms())<>0 then raise exception 'FAIL: foreign deleted rooms';end if;
+ denied:=false;begin perform public.classpulse_set_room_deleted((c->>'id')::uuid,false);exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: foreign restore';end if;
+ denied:=false;begin perform public.classpulse_set_room_deleted((c->>'id')::uuid,true);exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: foreign delete';end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'is_anonymous',false)::text,true);
+ perform public.classpulse_set_room_deleted((c->>'id')::uuid,false);
+ if not exists(select 1 from public.rosters where id=(c->>'id')::uuid) or exists(select 1 from jsonb_array_elements(public.classpulse_deleted_rooms()) x where x->>'id'=c->>'id') then raise exception 'FAIL: restore';end if;
+ s:=public.classpulse_launch_quick(r,'quick_tf',2,'Restored','delete-fixture-second');perform public.classpulse_end_session((s->>'id')::uuid);
+ if (select count(*) from public.quiz_sessions where room_id=r)<>2 then raise exception 'FAIL: restore created another room';end if;
+ execute 'reset role';update private.faculty_approvals set enabled=false where email=a::text||'@classpulse.invalid';execute 'set local role authenticated';
+ denied:=false;begin perform public.classpulse_set_room_deleted((c->>'id')::uuid,true);exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: revoked teacher deletes';end if;
+ execute 'reset role';execute 'set local role anon';perform set_config('request.jwt.claims','{}',true);
+ denied:=false;begin perform public.classpulse_deleted_rooms();exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'FAIL: student lists deleted rooms';end if;
+ denied:=false;begin perform public.classpulse_set_room_deleted((c->>'id')::uuid,true);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'FAIL: student deletes room';end if;
+ execute 'reset role';raise exception using errcode='CP001',message='Rollback fixtures';
+ exception when sqlstate 'CP001' then null;
+ end;
+ if exists(select 1 from auth.users where id in(a,b)) then raise exception 'FAIL: fixtures remain';end if;
+end $test$;
+rollback;
+select 'PASS: room delete, restore, active session checks, saved answers and teacher privacy verified; fixtures rolled back' as result;

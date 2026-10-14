@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { downloadQuizPdf } from './downloadQuizPdf';
+import {LibraryActions,type LibraryItem} from './LibraryActions';
 import { QuestionCard } from './QuestionCard';
 import {QuizWordFiles} from './QuizWordFiles';
 import { QuizExcelFiles } from './QuizExcelFiles';
@@ -8,8 +9,8 @@ import type {QuizImport} from './excel';
 import { supabase } from '../../lib/supabase';
 import { editQuestions, newQuestion, serializeQuestions, type EditorQuestion, type QuestionKind, type QuizDocument } from './model';
 
-type Folder={id:string;name:string;parent_id:string|null};
-type LibraryQuiz={id:string;title:string;folder_id:string|null};
+type Folder={id:string;name:string;parent_id:string|null;deletion_batch?:string};
+type LibraryQuiz={id:string;title:string;folder_id:string|null;deletion_batch?:string};
 type Version={quiz_id:string;version_number:number;status:string};
 function Action({title,onPress,disabled=false,secondary=false}:{title:string;onPress:()=>void;disabled?:boolean;secondary?:boolean}) {
  return <Pressable accessibilityRole="button" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={[s.button,secondary&&s.secondary,disabled&&{opacity:0.45}]}><Text style={[s.buttonText,secondary&&{color:'#263B4B'}]}>{title}</Text></Pressable>;
@@ -19,6 +20,7 @@ function Choice({title,selected,onPress,disabled=false}:{title:string;selected:b
 }
 export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyChange:(dirty:boolean)=>void}) {
  const [folders,setFolders]=useState<Folder[]>([]),[quizzes,setQuizzes]=useState<LibraryQuiz[]>([]),[versions,setVersions]=useState<Version[]>([]);
+ const [actionItem,setActionItem]=useState<LibraryItem|null>(null),[actionsReady,setActionsReady]=useState(false),[deletedView,setDeletedView]=useState(false),[deletedFolders,setDeletedFolders]=useState<Folder[]>([]),[deletedQuizzes,setDeletedQuizzes]=useState<LibraryQuiz[]>([]);
  const [pdfQuiz,setPdfQuiz]=useState<LibraryQuiz|null>(null),[withAnswers,setWithAnswers]=useState(false);
  const [addOpen,setAddOpen]=useState(false),[editingKey,setEditingKey]=useState<string|null>(null),[folderPicker,setFolderPicker]=useState(false);
  const [importKind,setImportKind]=useState<'excel'|'word'>('excel');
@@ -48,6 +50,9 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
   ]);
   if(!alive.current)return;
   if(results.some(r=>r.error)){setReady(false);throw new Error('Quiz library could not load. Install the Step 4 Supabase setup, then retry.');}
+  const deleted=await supabase!.rpc('classpulse_deleted_library');
+  if(!alive.current)return;setActionsReady(!deleted.error);setDeletedFolders(deleted.data?.folders??[]);setDeletedQuizzes(deleted.data?.quizzes??[]);
+  if(!['all','all-quizzes','unfiled'].includes(filter)&&!(results[0].data??[]).some(f=>f.id===filter))setFilter('all');
   setFolders(results[0].data??[]);setQuizzes(results[1].data??[]);setVersions(results[2].data??[]);setReady(true);
  }
  async function run(action:()=>Promise<void>) {
@@ -93,6 +98,9 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
   setFolderToRename(null);await loadLibrary();setNotice('Folder renamed.');
  });}
  function discard(){void run(async()=>{if(document)await readQuiz(document.quiz_id);else{setEditorOpen(false);setQuestions([]);setDirty(false);}setNotice('Unsaved edits discarded.');});}
+ function openActions(item:LibraryItem){setError('');setActionItem(item);}
+ async function afterAction(message:string){await loadLibrary();if(here&&!folders.some(f=>f.id===here))setFilter('all');setNotice(message);}
+ function restoreItem(kind:'quiz'|'folder',id:string){void run(async()=>{const {error}=await supabase!.rpc('classpulse_library_action',{item_kind:kind,target_item:id,action_name:'restore'});if(error)throw new Error(error.code==='P0001'?error.message:'Could not restore this item. Please refresh.');await loadLibrary();setNotice('Item restored.');});}
  const orderedFolders=[...folders].sort((a,b)=>path(a.id).localeCompare(path(b.id)));
  const needle=search.trim().toLowerCase();
  const here=filter==='all'||filter==='all-quizzes'||filter==='unfiled'?null:filter;
@@ -101,17 +109,24 @@ export function QuizManager({teacherId,onDirtyChange}:{teacherId:string;onDirtyC
  return <View style={s.section}>
   {!!error&&<Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.error}>{error}</Text>}{!!notice&&<Text accessibilityLiveRegion="polite" style={s.body}>{notice}</Text>}
   {!editorOpen&&<>
-   <View style={s.toolbar}><Text accessibilityRole="header" style={s.title}>Library</Text><View style={s.row}><Action title="Refresh" disabled={busy} secondary onPress={()=>void run(loadLibrary)}/><Action title="New Folder" disabled={busy||!ready} secondary onPress={()=>{setParent(here);setFolderName('');setFolderForm(true);}}/><Action title="Add Quiz" disabled={busy||!ready} onPress={()=>setAddOpen(true)}/></View></View>
-   <View style={s.libraryTools}><View style={s.row}><Choice title="Personal" selected={filter==='all'} onPress={()=>{setFilter('all');setSearch('');}}/><Choice title="All quizzes" selected={filter==='all-quizzes'} onPress={()=>{setFilter('all-quizzes');setSearch('');}}/>{here&&<Action title="‹ Back" disabled={busy} secondary onPress={()=>{setFilter(folders.find(f=>f.id===here)?.parent_id??'all');setSearch('');}}/>}</View><TextInput accessibilityLabel="Search quizzes and folders" placeholder="Search quizzes and folders" placeholderTextColor="#667582" value={search} onChangeText={setSearch} style={[s.input,{width:280,maxWidth:'100%'}]}/></View>
-   <View style={s.toolbar}><Text style={s.label}>{needle?'Search results':here?`Personal / ${path(here)}`:filter==='all-quizzes'?'All quizzes':'Personal'}</Text>{here&&<Action title="Rename folder" disabled={busy} secondary onPress={()=>{setFolderToRename(here);setRenameText(folders.find(f=>f.id===here)?.name??'');}}/>}</View>
-   <View style={s.list}>
+   <View style={s.toolbar}><Text accessibilityRole="header" style={s.title}>Library</Text><View style={s.row}><Action title="Refresh" disabled={busy} secondary onPress={()=>void run(loadLibrary)}/><Action title="New Folder" disabled={busy||!ready||deletedView} secondary onPress={()=>{setParent(here);setFolderName('');setFolderForm(true);}}/><Action title="Add Quiz" disabled={busy||!ready||deletedView} onPress={()=>setAddOpen(true)}/></View></View>
+   <View style={s.row}><Choice title="Quizzes" selected={!deletedView} onPress={()=>{setDeletedView(false);setSearch('');}}/><Choice title="Deleted" selected={deletedView} onPress={()=>{setDeletedView(true);setSearch('');}}/></View>
+   {!deletedView&&<View style={s.libraryTools}><View style={s.row}><Choice title="Personal" selected={filter==='all'} onPress={()=>{setFilter('all');setSearch('');}}/><Choice title="All quizzes" selected={filter==='all-quizzes'} onPress={()=>{setFilter('all-quizzes');setSearch('');}}/>{here&&<Action title="‹ Back" disabled={busy} secondary onPress={()=>{setFilter(folders.find(f=>f.id===here)?.parent_id??'all');setSearch('');}}/>}</View><TextInput accessibilityLabel="Search quizzes and folders" placeholder="Search quizzes and folders" placeholderTextColor="#667582" value={search} onChangeText={setSearch} style={[s.input,{width:280,maxWidth:'100%'}]}/></View>}
+   {!deletedView&&<View style={s.toolbar}><Text style={s.label}>{needle?'Search results':here?`Personal / ${path(here)}`:filter==='all-quizzes'?'All quizzes':'Personal'}</Text>{here&&<Action title="Rename folder" disabled={busy} secondary onPress={()=>{setFolderToRename(here);setRenameText(folders.find(f=>f.id===here)?.name??'');}}/>}</View>}
+   {!deletedView&&<View style={s.list}>
     <View style={s.listHeader}><Text style={[s.label,{flex:1}]}>NAME</Text><Text style={s.typeHeader}>TYPE</Text></View>
-    {visibleFolders.map(f=><Pressable key={f.id} accessibilityRole="button" accessibilityLabel={`Open folder: ${path(f.id)}`} disabled={busy} onPress={()=>{setFilter(f.id);setSearch('');}} style={s.listRow}><Text style={s.fileIcon}>▸</Text><View style={{flex:1,gap:4}}><Text style={s.itemName}>{f.name}</Text>{!!needle&&<Text style={s.body}>{path(f.id)}</Text>}</View><Text style={s.typeText}>Folder</Text></Pressable>)}
-    {visibleQuizzes.map(q=><View key={q.id} style={s.listRow}><Text style={s.fileIcon}>≡</Text><Pressable accessibilityRole="button" accessibilityLabel={`Open quiz: ${q.title}`} disabled={busy} onPress={()=>openQuiz(q.id)} style={{flex:1,gap:4}}><Text style={s.itemName}>{q.title}</Text>{(needle||filter==='all-quizzes')&&<Text style={s.body}>{q.folder_id?path(q.folder_id):'Personal'}</Text>}</Pressable><Text style={s.typeText}>Quiz</Text><Pressable accessibilityRole="button" accessibilityLabel={`Download PDF: ${q.title}`} disabled={busy} onPress={()=>{setWithAnswers(false);setError('');setPdfQuiz(q);}} style={s.secondary}><Text style={{color:'#0088B0',padding:10,fontWeight:'600'}}>PDF ↓</Text></Pressable></View>)}
+    {visibleFolders.map(f=><View key={f.id} style={s.listRow}><Text style={s.fileIcon}>▸</Text><Pressable accessibilityRole="button" accessibilityLabel={`Open folder: ${path(f.id)}`} disabled={busy} onPress={()=>{setFilter(f.id);setSearch('');}} style={{flex:1,gap:4}}><Text style={s.itemName}>{f.name}</Text>{!!needle&&<Text style={s.body}>{path(f.id)}</Text>}</Pressable><Text style={s.typeText}>Folder</Text><Pressable accessibilityRole="button" accessibilityLabel={`Folder actions: ${f.name}`} disabled={busy} onPress={()=>openActions({id:f.id,name:f.name,kind:'folder',parent:f.parent_id})} style={{padding:12}}><Text style={{fontSize:24,color:'#0088B0'}}>⋯</Text></Pressable></View>)}
+    {visibleQuizzes.map(q=><View key={q.id} style={s.listRow}><Text style={s.fileIcon}>≡</Text><Pressable accessibilityRole="button" accessibilityLabel={`Open quiz: ${q.title}`} disabled={busy} onPress={()=>openQuiz(q.id)} style={{flex:1,gap:4}}><Text style={s.itemName}>{q.title}</Text>{(needle||filter==='all-quizzes')&&<Text style={s.body}>{q.folder_id?path(q.folder_id):'Personal'}</Text>}</Pressable><Text style={s.typeText}>Quiz</Text><Pressable accessibilityRole="button" accessibilityLabel={`Download PDF: ${q.title}`} disabled={busy} onPress={()=>{setWithAnswers(false);setError('');setPdfQuiz(q);}} style={s.secondary}><Text style={{color:'#0088B0',padding:10,fontWeight:'600'}}>PDF ↓</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Quiz actions: ${q.title}`} disabled={busy} onPress={()=>openActions({id:q.id,name:q.title,kind:'quiz',parent:q.folder_id})} style={{padding:12}}><Text style={{fontSize:24,color:'#0088B0'}}>⋯</Text></Pressable></View>)}
     {ready&&!visibleFolders.length&&!visibleQuizzes.length&&<Text style={[s.body,{padding:20}]}>{needle?'No matching quizzes or folders.':'This folder is empty. Add a quiz or create a folder.'}</Text>}
     {!ready&&!error&&<Text style={[s.body,{padding:20}]}>Loading library…</Text>}
-   </View>
+   </View>}
+   {deletedView&&<View style={s.list}><Text style={[s.body,{padding:18}]}>Restore a folder to restore the quizzes and subfolders deleted with it. Saved reports are kept separately in Reports.</Text>{!actionsReady&&<Text style={[s.error,{padding:18}]}>Run the library actions setup in Supabase, then Refresh.</Text>}
+    {deletedFolders.filter(f=>f.deletion_batch===f.id).map(f=><View key={f.id} style={s.listRow}><Text style={[s.itemName,{flex:1}]}>{f.name}</Text><Text style={s.typeText}>Folder</Text><Action title={`Restore ${f.name}`} disabled={busy} secondary onPress={()=>restoreItem('folder',f.id)}/></View>)}
+    {deletedQuizzes.filter(q=>q.deletion_batch===q.id).map(q=><View key={q.id} style={s.listRow}><Text style={[s.itemName,{flex:1}]}>{q.title}</Text><Text style={s.typeText}>Quiz</Text><Action title={`Restore ${q.title}`} disabled={busy} secondary onPress={()=>restoreItem('quiz',q.id)}/></View>)}
+    {actionsReady&&!deletedFolders.some(f=>f.deletion_batch===f.id)&&!deletedQuizzes.some(q=>q.deletion_batch===q.id)&&<Text style={[s.body,{padding:18}]}>No deleted quizzes or folders.</Text>}
+   </View>}
   </>}
+  {actionItem&&<LibraryActions key={actionItem.kind+actionItem.id} item={actionItem} folders={folders} path={path} ready={actionsReady} onClose={()=>setActionItem(null)} onSaved={afterAction}/>}
   <Modal visible={!!pdfQuiz} transparent animationType="fade" onRequestClose={()=>{if(!busy)setPdfQuiz(null);}}><View style={s.overlay}><View accessibilityViewIsModal style={s.dialog}><Text style={s.subtitle}>Download quiz PDF</Text><Text style={s.body}>{pdfQuiz?.title}</Text><Text style={s.small}>Exports the latest saved quiz. Download the question paper for students or keep the answer key for teachers.</Text><Choice title="Question paper - without answers" selected={!withAnswers} disabled={busy} onPress={()=>setWithAnswers(false)}/><Choice title="Answer key - with answers" selected={withAnswers} disabled={busy} onPress={()=>setWithAnswers(true)}/>{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}<View style={s.row}><Action title="Cancel" secondary disabled={busy} onPress={()=>setPdfQuiz(null)}/><Action title={busy?'Preparing PDF…':'Download PDF'} disabled={busy} onPress={()=>void run(exportPdf)}/></View></View></View></Modal>
   <Modal visible={addOpen} transparent animationType="fade" onRequestClose={()=>setAddOpen(false)}><View style={s.overlay}><View accessibilityViewIsModal style={[s.dialog,{maxWidth:560}]}><View style={s.toolbar}><Text style={s.subtitle}>Add Quiz</Text><Pressable accessibilityRole="button" accessibilityLabel="Close Add Quiz" onPress={()=>setAddOpen(false)}><Text style={{fontSize:26,color:'#667582'}}>×</Text></Pressable></View>
    <Text style={s.label}>Import Questions</Text><Pressable accessibilityRole="button" accessibilityLabel="Import questions from Excel template" onPress={()=>importQuiz('excel')} style={s.method}><Text style={s.methodIcon}>▦</Text><View style={{flex:1,gap:6}}><Text style={s.methodTitle}>Excel Template</Text><Text style={s.body}>Download a template, fill it in, and import your questions.</Text></View></Pressable>
